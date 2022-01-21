@@ -1,0 +1,28 @@
+{
+    "name" : "alamode-aiida",
+    "version" : "0.5.1",
+    "entry_points" : {
+        "aiida.workflows": [
+            "alamode.dispall_pwx = alamode_aiida.alldisp_pwx_workchain: alldisp_pwx_WorkChain",
+            "alamode.displace_putfiles = alamode_aiida.tools: DisplacePutFiles",
+            "alamode.extract = alamode_aiida.tools: ExtractWorkChain",
+            "alamode.phband_img = alamode_aiida.tools: PhbandWorkChain",
+            "alamode.phdos_img = alamode_aiida.tools: PhdosWorkChain",
+            "alamode.freeenergy_img = alamode_aiida.tools: FreeenergyImgWorkChain"
+        ],
+	"aiida.calculations": [
+	    "alamode.pwx   = alamode_aiida.pwx_calcjob: pwx_CalcJob" ,
+            "alamode.alm   = alamode_aiida.alm_calcjob: alm_CalcJob",
+            "alamode.anphon = alamode_aiida.alm_calcjob: anphon_CalcJob",
+            "alamode.displace   = alamode_aiida.tools: displace_Calcjob",
+            "alamode.analyze_phonon = alamode_aiida.analyze_calcjob: analyze_phonon_CalcJob"
+	],
+	"aiida.parsers":  [
+	    "alamode.pwx  = alamode_aiida.pwx_calcjob: pwx_ParseJob" ,
+            "alamode.alm   = alamode_aiida.alm_calcjob: alm_ParseJob",
+            "alamode.anphon = alamode_aiida.alm_calcjob: anphon_ParseJob",
+            "alamode.displace   = alamode_aiida.tools: displace_ParseJob",
+            "alamode.analyze_phonon = alamode_aiida.analyze_calcjob: analyze_phonon_ParseJob"
+        ]
+    }
+}
