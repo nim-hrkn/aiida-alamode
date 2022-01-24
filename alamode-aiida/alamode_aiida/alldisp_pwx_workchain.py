@@ -1,14 +1,14 @@
 # Copyright 2022 Hiori Kino
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the “License”);
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an “AS IS” BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# 
+#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #!/usr/bin/env python
@@ -75,17 +75,23 @@ class ScatterInputAndCodeWorkChain(WorkChain):
 
 
 @calcfunction
-def _pack_calculations(**kwargs):
+def _pack_filename(**kwargs):
     result = [result.attributes['filename']
               for label, result in kwargs.items()]
     return List(list=result)
 
-
+@calcfunction
+def _pack_result(**kwargs):
+    result = [result.attributes
+              for label, result in kwargs.items()]
+    return List(list=result)
 
 class alldisp_pwx_WorkChain(WorkChain):
     _WAIT_SEC = 2
     _WORKCHAIN_KEY_FORMAT = "workchain_{}"
     _NORDER = 1
+    _PSEUDOS_DEFAULT = 'SSSP_1.1_efficiency'
+
     @classmethod
     def define(cls, spec):
         super().define(spec)
@@ -93,17 +99,21 @@ class alldisp_pwx_WorkChain(WorkChain):
         spec.input("pwx_input_folder", valid_type=FolderData)
         spec.input("code_string", valid_type=(Str, List))
         spec.input("cwd", valid_type=Str)
-        spec.input("norder", valid_type=Int, default= lambda: Int(cls._NORDER) )
+        spec.input('pseudos', valid_type=Str,
+                   default=lambda: Str(cls._PSEUDOS_DEFAULT))
+        spec.input("norder", valid_type=Int, default=lambda: Int(cls._NORDER))
         spec.outline(
             cls.submit_workchains,
             cls.inspect_workchains
         )
         spec.output("pwx_output", valid_type=List)
+        spec.output("result", valid_type=List)
 
     def submit_workchains(self):
         cwd_node = self.inputs.cwd
         print("cwd_node", cwd_node)
         pwx_input_filenames = self.inputs.pwx_input_folder
+        pseudos = self.inputs.pseudos
         code_list = self.inputs.code_string
 
         for _i, _ in enumerate(pwx_input_filenames.list_object_names()):
@@ -121,6 +131,7 @@ class alldisp_pwx_WorkChain(WorkChain):
             #builder.pwx_output_filename = _dict_key_str_(pwx_dic, output_filename_key)
             #builder.xml_filename = _dict_key_str_(pwx_dic, xml_filename_key)
             builder.cwd = cwd_node
+            builder.pseudos = pseudos
             builder.metadata = {
                 'options': {
                     'resources': {'tot_num_mpiprocs': 8, 'num_machines': 1}
@@ -134,22 +145,19 @@ class alldisp_pwx_WorkChain(WorkChain):
 
             #print("future", i, key, future)
 
-
     def inspect_workchains(self):
-        if True:
-            for w in self.ctx.pwx:
-                assert w.is_finished_ok
-        else:
-            _pwx_input_filenames = self.inputs.pwx_input_folder.list_object_names()
-            for i, _ in enumerate(_pwx_input_filenames):
-                key = self._WORKCHAIN_KEY_FORMAT.format(i)
-                assert self.ctx[key].is_finished_ok
+        for w in self.ctx.pwx:
+            assert w.is_finished_ok
 
         calculations = self.ctx.pwx
         inputs = {}
         for _i, w in enumerate(calculations):
-            inputs[f"label{_i}"] = w.get_outgoing(
-            ).get_node_by_label('output_file')
-        # inputs = {label: node.get_outgoing().get_node_by_label('output_file') for label, node in calculations.items()}
+            inputs[f"label{_i}"] = w.get_outgoing().get_node_by_label('output_file')
 
-        self.out("pwx_output", _pack_calculations(**inputs))
+        results = {}
+        for _i, w in enumerate(calculations):
+            results[f"label{_i}"] = w.get_outgoing().get_node_by_label('result')
+
+        self.out("pwx_output", _pack_filename(**inputs))
+
+        self.out('result', _pack_result(**results))

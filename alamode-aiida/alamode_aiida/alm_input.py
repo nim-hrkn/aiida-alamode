@@ -165,10 +165,9 @@ def make_kspacing_kmeshlist(atoms: Atoms, kspacing_lim = (-1,-2.5), nmesh: int=2
 
     kmesh_df = pd.DataFrame(mesh_data, columns=["kspacing","na","nb","nc"])
     if show:
-        display(g_kmesh_df)
         fig, ax = plt.subplots()
         for _ylabel in kmesh_df.columns[1:]:
-            g_kmesh_df.plot(x="kspacing",y=_ylabel, ax=ax)
+            kmesh_df.plot(x="kspacing",y=_ylabel, ax=ax)
         ax.set_xscale("log")
     return kmesh_df
 
