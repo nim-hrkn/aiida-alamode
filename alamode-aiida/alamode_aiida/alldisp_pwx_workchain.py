@@ -161,3 +161,4 @@ class alldisp_pwx_WorkChain(WorkChain):
         self.out("pwx_output", _pack_filename(**inputs))
 
         self.out('result', _pack_result(**results))
+        

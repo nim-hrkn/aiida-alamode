@@ -1,19 +1,21 @@
 # Copyright 2022 Hiori Kino
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the “License”);
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an “AS IS” BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# 
+#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #!/usr/bin/env python
 # coding: utf-8
 
+import matplotlib.pyplot as plt
+import pandas as pd
 from aiida.engine import calcfunction
 from aiida.orm import Str,  Int
 
@@ -29,67 +31,71 @@ import sys
 
 AU2ANG = 0.529177
 
+
 def alm_norder_name(norder: int):
     if norder == 1:
-       name =  "harmonic"
+        name = "harmonic"
     elif norder == 2:
-        name =  "cubic"
+        name = "cubic"
     else:
-        raise ValueError(f"unknown norder={norder}.")    
+        raise ValueError(f"unknown norder={norder}.")
     return name
-
-if False:
-    def alm_norder_path(cwd: str, norder: int):
-        """This function is obsolte.
-        Use AlmPrefixMaker.
-        """
-        norder_name = alm_norder_name(norder)
-        _path = os.path.join(cwd, norder_name)
-        os.makedirs(_path, exist_ok=True)
-        return _path
-
-    @calcfunction
-    def alm_norder_node(cwd: Str, norder: Int):
-        """This function is obsolete.
-        Use AlmPathMaker.
-        """
-        _path = alm_norder_path(cwd.value, norder.value)
-        return Str(_path)
-
 
 
 def _list_to_str(value, add="x"):
-    if isinstance(value,np.ndarray):
+    if isinstance(value, np.ndarray):
         value = value.tolist()
-    if isinstance(value,list):
-        value = add.join(list(map(str,value)))
+    if isinstance(value, list):
+        value = add.join(list(map(str, value)))
     return value
-                
+
+
+def check_almprefixtype(value):
+    flag = False
+    if isinstance(value,float):
+        flag = True
+    elif isinstance(value,int):
+        flag = True
+    elif isinstance(value,str):
+        flag = True
+    elif isinstance(value,list):
+        flag = True
+
+    if not flag:
+        typename = type(value)
+        raise ValueError(f'invalid type in check_almprefixtype. type={typename}')
+
+    return flag
+
 class AlmBasePrefixMaker(object):
-    _order = ["name","kmesh"]
+    _order = ["name", "kmesh"]
+
     def __init__(self, **kwargs):
         self.process_kwargs(**kwargs)
-        
-    def process_kwargs(self,**kwargs):
+
+    def process_kwargs(self, **kwargs):
         """norder is converted to "harmonic" or "cubic".
         """
         prefix_list = []
         for _label in self._order:
             if _label in kwargs:
                 _value = kwargs.pop(_label)
-                if _label =="norder":
+                check_almprefixtype(_value)
+                if _label == "norder":
                     _value = alm_norder_name(_value)
-                if isinstance(_value,list) or isinstance(_value, np.ndarray):
+                if isinstance(_value, list) or isinstance(_value, np.ndarray):
                     _value = _list_to_str(_value)
                 if _label in ["kmesh", "qmesh"]:
                     _value = _label[0]+_value
                 prefix_list.append(_value.__str__())
             else:
-                raise ValueError(f"No key={_label} is found in {self.__class__.__name__}:{sys._getframe().f_code.co_name}.")
+                raise ValueError(
+                    f"No key={_label} is found in {self.__class__.__name__}:{sys._getframe().f_code.co_name}.")
         for _label, _value in kwargs.items():
-            if isinstance(_value,list):
+            check_almprefixtype(_value)
+            if isinstance(_value, list):
                 _value = _list_to_str(_value)
-            elif _label =="norder" and isinstance(_value,int):
+            elif _label == "norder" and isinstance(_value, int):
                 _value = alm_norder_name(_value)
             if _label in ["kmesh", "qmesh"]:
                 _value = _label[0]+_value
@@ -99,26 +105,31 @@ class AlmBasePrefixMaker(object):
     @property
     def prefix(self):
         return "_".join(self.prefix_list)
-    
+
+
 class AlmPrefixMaker(AlmBasePrefixMaker):
-    """make prefix such as "{name}_{kmesh}."
+    """make prefix such as "{name}_k{kmesh}_{norder.__str()__}".
     """
-    _ORDER = ["name","kmesh","norder"]
+    _ORDER = ["name", "kmesh", "norder"]
+
     def __init__(self, **kwargs):
         self._order = self._ORDER
         super().__init__(**kwargs)
-    
+
+
 class AlmPathMaker(AlmBasePrefixMaker):
-    """make path such as "{name}_{norder.string}.
+    """make path name such as "{name}_k{kmesh}_{norder.__str()__}".
     """
-    _ORDER = ["name","kmesh", "norder"]
+    _ORDER = ["name", "kmesh", "norder"]
+
     def __init__(self, **kwargs):
         self._order = self._ORDER
-        super().__init__(**kwargs) 
-        os.makedirs(self.prefix, exist_ok=True)
+        super().__init__(**kwargs)
+        #os.makedirs(self.prefix, exist_ok=True)
+        #print("make", self.prefix)
 
 
-def make_alm_uniform_kmesh(atoms: Atoms, kspacing: float = 0.05, koffset=(0,0,0), n=3):
+def make_alm_uniform_kmesh(atoms: Atoms, kspacing: float = 0.05, koffset=(0, 0, 0), n=3):
     """
 
     Args:
@@ -152,22 +163,19 @@ def make_alm_uniform_kmesh(atoms: Atoms, kspacing: float = 0.05, koffset=(0,0,0)
 
     return None
 
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 
-def make_kspacing_kmeshlist(atoms: Atoms, kspacing_lim = (-1,-2.5), nmesh: int=20, show=False):
+def make_kspacing_kmeshlist(atoms: Atoms, kspacing_lim=(-1, -2.5), nmesh: int = 20, show=False):
     mesh_data = []
-    for kspacing in np.logspace(kspacing_lim[0],kspacing_lim[1], nmesh):
+    for kspacing in np.logspace(kspacing_lim[0], kspacing_lim[1], nmesh):
         kspacing_mesh = [kspacing]
         kspacing_mesh.extend(make_alm_uniform_kmesh(atoms, kspacing=kspacing))
         mesh_data.append(kspacing_mesh)
 
-    kmesh_df = pd.DataFrame(mesh_data, columns=["kspacing","na","nb","nc"])
+    kmesh_df = pd.DataFrame(mesh_data, columns=["kspacing", "na", "nb", "nc"])
     if show:
         fig, ax = plt.subplots()
         for _ylabel in kmesh_df.columns[1:]:
-            kmesh_df.plot(x="kspacing",y=_ylabel, ax=ax)
+            kmesh_df.plot(x="kspacing", y=_ylabel, ax=ax)
         ax.set_xscale("log")
     return kmesh_df
 
@@ -497,7 +505,7 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
             general.remove("MASS")
 
     nat = superstructure.get_scaled_positions().shape[0]
-    if mode not in ["phonons","RTA"]:
+    if mode not in ["phonons", "RTA"]:
         general["NAT"] = str(nat)
     print("mode, general", mode, general)
 
@@ -519,7 +527,6 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
 
     print("dic3", dic)
 
-    
     cell = []
     a = superstructure.cell.ravel().max()
     cell.append(str(a/AU2ANG))
