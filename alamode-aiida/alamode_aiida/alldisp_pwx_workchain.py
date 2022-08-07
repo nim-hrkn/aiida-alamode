@@ -111,7 +111,6 @@ class alldisp_pwx_WorkChain(WorkChain):
 
     def submit_workchains(self):
         cwd_node = self.inputs.cwd
-        print("cwd_node", cwd_node)
         pwx_input_filenames = self.inputs.pwx_input_folder
         pseudos = self.inputs.pseudos
         code_list = self.inputs.code_string
@@ -122,7 +121,6 @@ class alldisp_pwx_WorkChain(WorkChain):
                 pwx_input_filenames, code_list, Int(_i))
             input_filename = _filelist_to_pwx_input_list(
                 pwx_input_filenames, Int(_i))
-            print("input_filename", input_filename)
 
             _code = Code.get_from_string(code_string.value)
 
@@ -143,7 +141,6 @@ class alldisp_pwx_WorkChain(WorkChain):
             #self.to_context(**{key: future})
             self.to_context(pwx=append_(future))
 
-            #print("future", i, key, future)
 
     def inspect_workchains(self):
         for w in self.ctx.pwx:

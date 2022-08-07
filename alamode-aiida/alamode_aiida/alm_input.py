@@ -60,14 +60,18 @@ def check_almprefixtype(value):
         flag = True
     elif isinstance(value,list):
         flag = True
+    elif isinstance(value, np.ndarray):
+        flag = True
 
     if not flag:
         typename = type(value)
+        print(f"invalid type for value={value}")
         raise ValueError(f'invalid type in check_almprefixtype. type={typename}')
 
     return flag
 
 class AlmBasePrefixMaker(object):
+    """This class is obsolete."""
     _order = ["name", "kmesh"]
 
     def __init__(self, **kwargs):
@@ -108,7 +112,9 @@ class AlmBasePrefixMaker(object):
 
 
 class AlmPrefixMaker(AlmBasePrefixMaker):
-    """make prefix such as "{name}_k{kmesh}_{norder.__str()__}".
+    """This class is obsolete.
+    
+    make prefix such as "{name}_k{kmesh}_{norder.__str()__}".
     """
     _ORDER = ["name", "kmesh", "norder"]
 
@@ -118,7 +124,9 @@ class AlmPrefixMaker(AlmBasePrefixMaker):
 
 
 class AlmPathMaker(AlmBasePrefixMaker):
-    """make path name such as "{name}_k{kmesh}_{norder.__str()__}".
+    """This class is obsolete.
+    
+    make path name such as "{name}_k{kmesh}_{norder.__str()__}".
     """
     _ORDER = ["name", "kmesh", "norder"]
 
@@ -477,7 +485,6 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
     """
     if dic is None:
         dic = {}
-    print("dic1", dic)
 
     uniqZ = np.unique(superstructure.get_atomic_numbers())
     uniqZ = uniqZ.tolist()
@@ -507,9 +514,7 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
     nat = superstructure.get_scaled_positions().shape[0]
     if mode not in ["phonons", "RTA"]:
         general["NAT"] = str(nat)
-    print("mode, general", mode, general)
 
-    print("dic2", dic)
 
     if "general" not in dic.keys():
         dic["general"] = general
@@ -521,11 +526,9 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
         if "FCSXML" not in dic["general"].keys():
             raise KeyError(f"FCSXML is necessary in mode={mode}.")
 
-    print("dic3", dic)
     interaction = {"NORDER": norder}
     dic["interaction"] = interaction
 
-    print("dic3", dic)
 
     cell = []
     a = superstructure.cell.ravel().max()

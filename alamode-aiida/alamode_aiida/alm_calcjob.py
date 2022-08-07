@@ -1,14 +1,14 @@
 # Copyright 2022 Hiori Kino
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the “License”);
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an “AS IS” BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# 
+#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from aiida.orm import Str, Dict, Int
@@ -31,6 +31,7 @@ SinglefileData = DataFactory('singlefile')
 FolderData = DataFactory('folder')
 List = DataFactory('list')
 ArrayData = DataFactory('array')
+
 
 def _parse_alm_suggest(filename=None, handle=None):
     if filename is not None and handle is None:
@@ -55,9 +56,12 @@ def _parse_alm_suggest(filename=None, handle=None):
             s2 = s[1].strip()
             num_disp[s1] = s2
         elif "Suggested displacement patterns" in line:
-            line = next(data_iter)
-            s = line.split(":")
-            disp_pattern[s[0].strip()] = s[-1].strip()
+            while True:
+                line = next(data_iter).strip()
+                if len(line)==0:
+                    break
+                s = line.split(":")
+                disp_pattern[s[0].strip()] = s[-1].strip()
         elif "Job finished" in line:
             break
     return {"num_free_fcs,": num_free_fcs, "num_disp": num_disp,
@@ -80,9 +84,11 @@ def _alm_suggest_retrieve_pattern_file(retrieved: Folder, prefix: Str,
     prefix_value = prefix.value
     folderdata = FolderData()
     for filename in retrieved.list_object_names():
+
         if fnmatch(filename, f"{prefix_value}.pattern_*"):
             _content = retrieved.get_object_content(filename)
             target_path = os.path.join(cwd_value, filename)
+
 
             with open(target_path, "w") as f:
                 f.write(_content)
@@ -130,7 +136,10 @@ def _parse_alm_opt(handle):
             optimization["RSS"] = float(s[-1])
         elif "Fitting error" in line:
             s = line.split(":")
-            optimization["fittin_error"] = float(s[-1])
+            optimization["fitting_error"] = float(s[-1])
+        elif "RANK of the matrix =" in line:
+            s = line.split("=")
+            optimization["rank_of_matrix"] = int(s[-1])
 
         elif "Force constants in a human-readable format" in line:
             s = line.split(":")
@@ -143,13 +152,12 @@ def _parse_alm_opt(handle):
             "outputfiles": outputfiles}
 
 
-class alm_CalcJob(CalcJob):
+class almBaseCalcJob(CalcJob):
     """
-    If fc2xml_file is SinglefileData, first place it in cwd directory with the same name as SinglefileData. 
+    If fc2xml_file is SinglefileData, first place it in cwd directory with the same name as SinglefileData.
     """
     _WITHMPI = True
-    _DFSET_FILE = ""
-    _FC2XML_FILE = ""
+
     _PREFIX_DEFAULT = "alamode"
     _CUTOFF_DEFAULT = {"*-*": [None]}
     _PARAM_DEFAULT = {}
@@ -162,13 +170,10 @@ class alm_CalcJob(CalcJob):
                    default=lambda: Str(cls._PREFIX_DEFAULT))
         spec.input("cwd", valid_type=Str)
         spec.input("norder", valid_type=Int)
-        spec.input("mode", valid_type=Str)
-        spec.input('dfset_file', valid_type=(Str, SinglefileData),
-                   default=lambda: Str(cls._DFSET_FILE))
-        spec.input('cutoff', valid_type=Dict, 
+
+        spec.input('cutoff', valid_type=Dict,
                    default=lambda: Dict(dict=cls._CUTOFF_DEFAULT))
-        spec.input('fc2xml_file', valid_type=(Str, SinglefileData),
-                default=lambda: Str(cls._FC2XML_FILE))
+
         spec.input('param', valid_type=Dict,
                    default=lambda: Dict(dict=cls._PARAM_DEFAULT))
 
@@ -179,126 +184,173 @@ class alm_CalcJob(CalcJob):
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
 
         spec.output('result', valid_type=Dict)
+
+
+class almSuggestCalcJob(almBaseCalcJob):
+    """alm mode="suggest"
+    """
+    _WITHMPI = True
+    _DFSET_FILE = ""
+    _FC2XML_FILE = ""
+    _MODE = "suggest"
+    _PARAM_DEFAULT = {}
+
+    @classmethod
+    def define(cls, spec):
+        super().define(spec)
+        spec.expose_inputs(almBaseCalcJob)
+        spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE))
+        spec.expose_outputs(almBaseCalcJob)
         spec.output('pattern_folder', valid_type=FolderData)
+
+    def prepare_for_submission(self, folder: Folder) -> CalcInfo:
+        cwd = self.inputs.cwd.value
+        mode = self.inputs.mode.value
+        alm_prefix_value = self.inputs.prefix.value
+        norder = self.inputs.norder.value
+
+        pattern_files = []
+        for iorder in range(1, norder+1):
+            pattern_file = _alm_pattern_file(alm_prefix_value, iorder)
+            pattern_files.append(pattern_file)
+
+
+
+        # make inputfile
+        structure = self.inputs.structure.get_ase()
+        cutoff_value = self.inputs.cutoff.get_dict()
+
+        alm_param = atoms_to_alm_in(
+            "suggest", structure, prefix=alm_prefix_value, norder=norder,
+            cutoff=cutoff_value, dic=self.inputs.param.get_dict())
+
+        with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
+            make_alm_in(alm_param, handle=handle)
+
+        # code
+        codeinfo = CodeInfo()
+        codeinfo.code_uuid = self.inputs.code.uuid
+        codeinfo.cmdline_params = [self.options.input_filename]
+        codeinfo.stdout_name = self.options.output_filename
+        codeinfo.withmpi = self.options.withmpi
+
+        calcinfo = CalcInfo()
+        calcinfo.codes_info = [codeinfo]
+
+        # add files to retrieve list
+        pattern_files.extend(
+            [self.options.input_filename, self.options.output_filename])
+        calcinfo.retrieve_list = pattern_files
+
+        return calcinfo
+
+
+class almOptCalcJob(almBaseCalcJob):
+    """alm mode="opt"
+    """
+    _WITHMPI = True
+    _MODE = "opt"
+    _DFSET_FILE = ""
+    _FC2XML_FILE = ""
+    _PREFIX_DEFAULT = "alamode"
+    _CUTOFF_DEFAULT = {"*-*": [None]}
+    _PARAM_DEFAULT = {}
+
+    @classmethod
+    def define(cls, spec):
+        super().define(spec)
+        spec.expose_inputs(almOptCalcJob)
+        spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE))
+        spec.input('dfset_file', valid_type=(Str, SinglefileData),
+                   default=lambda: Str(cls._DFSET_FILE))
+        spec.input('fc2xml_file', valid_type=(Str, SinglefileData),
+                default=lambda: Str(cls._FC2XML_FILE))
+
+        spec.expose_outputs(almOptCalcJob)
+        # spec.output('pattern_folder', valid_type=FolderData)
         spec.output('input_ANPHON_file', valid_type=SinglefileData)
         spec.output('force_constants_file', valid_type=SinglefileData)
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
         cwd = self.inputs.cwd.value
-        print("cwd", cwd)
         mode = self.inputs.mode.value
         alm_prefix_value = self.inputs.prefix.value
         norder = self.inputs.norder.value
 
-        if mode == "suggest":
-            
-            pattern_files = []
-            for iorder in range(1, norder+1):
-                pattern_file = _alm_pattern_file(alm_prefix_value, iorder)
-                pattern_files.append(pattern_file)
+        # copy dfset_filename
+        DFSETfilename = self.inputs.dfset_file.attributes["filename"]
+        target_path = os.path.join(cwd, DFSETfilename)
+        if not os.path.isfile(target_path):
+            with open(target_path, "w") as f:
+                f.write(self.inputs.dfset_file.get_content())
+        folder.insert_path(os.path.join(cwd, DFSETfilename),
+                            dest_name=DFSETfilename)
 
-            # make inputfile
-            structure = self.inputs.structure.get_ase()
-            cutoff_value = self.inputs.cutoff.get_dict()
-
-            alm_param = atoms_to_alm_in(
-                "suggest", structure, prefix=alm_prefix_value, norder=norder, 
-                cutoff=cutoff_value, dic = self.inputs.param.get_dict())
-
-            with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
-                make_alm_in(alm_param, handle=handle)
-
-            # code
-            codeinfo = CodeInfo()
-            codeinfo.code_uuid = self.inputs.code.uuid
-            codeinfo.cmdline_params = [self.options.input_filename]
-            codeinfo.stdout_name = self.options.output_filename
-            codeinfo.withmpi = self.options.withmpi
-
-            calcinfo = CalcInfo()
-            calcinfo.codes_info = [codeinfo]
-
-            # add files to retrieve list
-            pattern_files.extend(
-                [self.options.input_filename, self.options.output_filename])
-            calcinfo.retrieve_list = pattern_files
-
-            return calcinfo
-
-        elif mode == "opt":
-            # copy dfset_filename
-            DFSETfilename = self.inputs.dfset_file.attributes["filename"]
-            target_path = os.path.join(cwd, DFSETfilename)
+        if isinstance(self.inputs.fc2xml_file, SinglefileData):
+            fc2xmlfilename = self.inputs.fc2xml_file.attributes["filename"]
+            target_path = os.path.join(cwd, fc2xmlfilename)
             if not os.path.isfile(target_path):
-                with open(target_path,"w") as f:
-                    f.write(self.inputs.dfset_file.get_content())
-            folder.insert_path(os.path.join(cwd, DFSETfilename),
-                               dest_name=DFSETfilename)
+                # You can make it only in the folder directory,
+                # but force making in the cwd directory.
+                with open(target_path, "w") as f:
+                    f.write(self.inputs.fc2xml_file.get_content())
+            folder.insert_path(os.path.join(cwd, fc2xmlfilename),
+                                dest_name=fc2xmlfilename)
+        elif isinstance(self.inputs.fc2xml_file, Str):
+            _target_path = self.inputs.fc2xml_file.value
+            if len(_target_path) > 0:
+                _, _fc2xmlfilename = os.path.split(_target_path)
+                folder.insert_path(_target_path, dest_name=_fc2xmlfilename)
 
-            if isinstance(self.inputs.fc2xml_file, SinglefileData):
-                fc2xmlfilename = self.inputs.fc2xml_file.attributes["filename"]
-                target_path = os.path.join(cwd, fc2xmlfilename)
-                if not os.path.isfile(target_path):
-                    with open(target_path,"w") as f:
-                        f.write(self.inputs.fc2xml_file.get_content())
-                folder.insert_path(os.path.join(cwd, fc2xmlfilename),
-                                   dest_name=fc2xmlfilename)
-            elif isinstance(self.inputs.fc2xml_file,Str):
-                _target_path = self.inputs.fc2xml_file.value
-                if len(_target_path)>0:
-                    _, _fc2xmlfilename = os.path.split(_target_path)
-                    if not os.path.isfile(_target_path):
-                        with open(_target_path,"w") as f:
-                            f.write(self.inputs.fc2xml_file.get_content())
-                    folder.insert_path(_target_path, dest_name=_fc2xmlfilename)
+        # make inputfile
+        structure = self.inputs.structure.get_ase()
+        param = self.inputs.param.get_dict()
+        if "optimize" in param.keys():
+            param["optimize"]["DFSET"] = DFSETfilename
+        else:
+            param["optimize"] = {"DFSET": DFSETfilename}
+        if isinstance(self.inputs.fc2xml_file, SinglefileData):
+            param["optimize"]["FC2XML"] = self.inputs.fc2xml_file.list_object_names()[0]
+        if isinstance(self.inputs.fc2xml_file, Str) and len(self.inputs.fc2xml_file.value) > 0:
+            target_path = self.inputs.fc2xml_file.value
+            _, fc2xmlfilename = os.path.split(target_path)
+            param["optimize"]["FC2XML"] = fc2xmlfilename  # only basename
 
-            # make inputfile
-            structure = self.inputs.structure.get_ase()
-            param = self.inputs.param.get_dict()
-            if "optimize" in param.keys():
-                param["optimize"]["DFSET"] = DFSETfilename
-            else:
-                param["optimize"] = {"DFSET": DFSETfilename}
-            if isinstance(self.inputs.fc2xml_file, SinglefileData):
-                param["optimize"]["FC2XML"] = self.inputs.fc2xml_file.list_object_names()[0]
-            if isinstance(self.inputs.fc2xml_file, Str) and  len(self.inputs.fc2xml_file.value)>0:
-                target_path = self.inputs.fc2xml_file.value
-                _, fc2xmlfilename = os.path.split(target_path)
-                param["optimize"]["FC2XML"] = fc2xmlfilename # only basename
+        alm_param = atoms_to_alm_in("opt", structure,
+                                    dic=param, norder=norder,
+                                    prefix=alm_prefix_value)
+        with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
+            make_alm_in(alm_param, handle=handle)
 
-            print("param", param)
-            alm_param = atoms_to_alm_in("opt", structure,
-                                        dic=param, norder = norder, 
-                                        prefix=alm_prefix_value)
-            with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
-                make_alm_in(alm_param, handle=handle)
+        # code
+        codeinfo = CodeInfo()
+        codeinfo.code_uuid = self.inputs.code.uuid
+        codeinfo.cmdline_params = [self.options.input_filename]
+        codeinfo.stdout_name = self.options.output_filename
+        codeinfo.withmpi = self.options.withmpi
 
-            # code
-            codeinfo = CodeInfo()
-            codeinfo.code_uuid = self.inputs.code.uuid
-            codeinfo.cmdline_params = [self.options.input_filename]
-            codeinfo.stdout_name = self.options.output_filename
-            codeinfo.withmpi = self.options.withmpi
+        calcinfo = CalcInfo()
+        calcinfo.codes_info = [codeinfo]
+        calcinfo.retrieve_list = [
+            self.options.input_filename, self.options.output_filename]
 
-            calcinfo = CalcInfo()
-            calcinfo.codes_info = [codeinfo]
-            calcinfo.retrieve_list = [
-                self.options.input_filename, self.options.output_filename]
+        for ext in ["fcs", "xml"]:
+            filename = f"{alm_prefix_value}.{ext}"
+            calcinfo.retrieve_list.append(filename)
 
-            for ext in ["fcs", "xml"]:
-                filename = f"{alm_prefix_value}.{ext}"
-                calcinfo.retrieve_list.append(filename)
-
-            return calcinfo
+        return calcinfo
 
 
 class alm_ParseJob(Parser):
 
     def parse(self, **kwargs):
+
+
         mode = self.node.inputs.mode.value
         cwd = self.node.inputs.cwd.value
-        print("cwd", cwd)
         alm_prefix_node = self.node.inputs.prefix
+        prefix = self.node.inputs.prefix.value
+
 
         if mode == "optimize":
             mode = "opt"
@@ -319,7 +371,7 @@ class alm_ParseJob(Parser):
 
             filelist = [self.node.get_option('input_filename'),
                         self.node.get_option('output_filename')]
-            local_filelist = [f"alm_{mode}.in", f"alm_{mode}.out"]
+            local_filelist = [f"alm_{mode}_{prefix}.in", f"alm_{mode}_{prefix}.out"]
             for filename, localfilename in zip(filelist, local_filelist):
                 if filename in output_folder.list_object_names():
                     _content = output_folder.get_object_content(filename)
@@ -352,9 +404,11 @@ class alm_ParseJob(Parser):
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
+
+
             filelist = [self.node.get_option('input_filename'),
                         self.node.get_option('output_filename')]
-            local_filelist = [f"alm_{mode}.in", f"alm_{mode}.out"]
+            local_filelist = [f"alm_{mode}_{prefix}.in", f"alm_{mode}_{prefix}.out"]
             for filename, localfilename in zip(filelist, local_filelist):
                 if filename in output_folder.list_object_names():
                     _content = output_folder.get_object_content(filename)
@@ -365,6 +419,7 @@ class alm_ParseJob(Parser):
                     raise ValueError(
                         f"no filename={filename} in retrieved data.")
 
+
             filename = result["outputfiles"]["input_ANPHON"]
             _content = output_folder.get_object_content(filename)
             target_path = os.path.join(cwd, filename)
@@ -372,12 +427,16 @@ class alm_ParseJob(Parser):
                 f.write(_content)
             input_anphon_file = SinglefileData(target_path)
 
+
+
             filename = result["outputfiles"]["force_constants"]
             _content = output_folder.get_object_content(filename)
             target_path = os.path.join(cwd, filename)
             with open(target_path, "w") as f:
                 f.write(_content)
             force_constants_file = SinglefileData(target_path)
+
+ 
 
             self.out("input_ANPHON_file", input_anphon_file)
             self.out("force_constants_file", force_constants_file)
@@ -408,7 +467,7 @@ class anphon_CalcJob(CalcJob):
         spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE))
         spec.input('phonons_mode', valid_type=Str, default=lambda: Str(cls._PHONONS_MODE))
         spec.input('kappa_spec', valid_type=Int, default=lambda: Int(cls._KAPPA_SPEC))
-        #spec.input('kparam', valid_type=Dict, default=lambda: Dict(dict=cls._PARAM))
+        # spec.input('kparam', valid_type=Dict, default=lambda: Dict(dict=cls._PARAM))
         spec.input('qmesh', valid_type=List, default=lambda: List(list=cls._QMESH_LIST))
         spec.input('param', valid_type=Dict, default=lambda: Dict(dict=cls._PARAM))
 
@@ -417,6 +476,7 @@ class anphon_CalcJob(CalcJob):
         spec.inputs['metadata']['options']['output_filename'].default = f'anphon.out'
         spec.inputs['metadata']['options']['resources'].default = {
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
+            
         spec.output('result', valid_type=Dict)
         spec.output('phband_file', valid_type=SinglefileData)
         spec.output('phdos_file', valid_type=SinglefileData)
@@ -428,7 +488,6 @@ class anphon_CalcJob(CalcJob):
         spec.output('kl_spec', valid_type=ArrayData)
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
-        print("prepare_for_submission")
         mode = self.inputs.mode.value
         norder = self.inputs.norder.value
         cwd = self.inputs.cwd.value
@@ -515,7 +574,6 @@ class anphon_CalcJob(CalcJob):
             folder.insert_path(target_path, 
                             dest_name=fcsxml)
 
-            print("folder inserted")
             # make inputfile
             structure = self.inputs.structure.get_ase()
             alm_prefix_value = self.inputs.prefix.value
@@ -540,7 +598,6 @@ class anphon_CalcJob(CalcJob):
             else:
                 other_param["kpoint"]=kpoint_param
 
-            print("other param", other_param)
 
             kappa_spec_value = self.inputs.kappa_spec.value
             if kappa_spec_value>0:
@@ -549,13 +606,11 @@ class anphon_CalcJob(CalcJob):
                 else:
                     other_param["analysis"] = {"KAPPA_SPEC":kappa_spec_value}
 
-            print("other params2", other_param)
 
             alm_param = atoms_to_alm_in(mode, structure, dic=other_param,
                                         norder= norder, 
                                         prefix=alm_prefix_value)
 
-            print("alm_param", alm_param)
 
             with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
                 make_alm_in(alm_param, handle=handle)
@@ -660,7 +715,6 @@ def _parse_anphon_RTA(handle):
 class anphon_ParseJob(Parser):
 
     def parse(self, **kwargs):
-        print("anphon_ParseJob parse start")
         mode = self.node.inputs.mode.value
         norder = self.node.inputs.norder.value
         prefix = self.node.inputs.prefix.value
@@ -687,7 +741,6 @@ class anphon_ParseJob(Parser):
             elif kappa_spec_value == 1:
                 kappa_spec_str = "_spec"
 
-            print("output_folder", output_folder.list_object_names())
 
             filename = self.node.get_option('input_filename')
             _content = output_folder.get_object_content(filename)

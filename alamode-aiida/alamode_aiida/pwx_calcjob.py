@@ -105,7 +105,6 @@ class pwx_CalcJob(CalcJob):
         # pwx input file
         input_file_path = os.path.join(self.inputs.cwd.value,
                                        self.inputs.pwx_input_filename.value)
-        print("_file_path", input_file_path, "dest_name",
               self.options.input_filename)
         folder.insert_path(
             input_file_path, dest_name=self.options.input_filename)
@@ -264,7 +263,6 @@ import xml.etree.ElementTree as ET
 
 def xml_get_array(root, label, astype=float):
     forces = root.find(label)
-    # print(forces.attrib)
     lines = []
     for line in forces.text.splitlines():
         line = line.strip()
@@ -353,7 +351,6 @@ def _parser_pwx_xml(filename: str):
     
     version = xml_get_value(root,
                         "general_info/creator,VERSION", str)
-    print("version", version)
 
     result = {"version": version}
     if version == "7.0":
@@ -378,7 +375,6 @@ class pwx_ParseJob(Parser):
         except ValueError:
             return self.exit_codes.ERROR_INVALID_OUTPUT
 
-        print("result", result)
         self.out('result', Dict(dict=result))
 
         cwd = self.node.inputs.cwd.value

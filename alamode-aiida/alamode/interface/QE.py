@@ -14,7 +14,7 @@ import numpy as np
 import math
 import copy
 import sys
-import re
+
 
 class QEParser(object):
 
@@ -1055,14 +1055,5 @@ class QEParser(object):
         dielec = np.reshape(np.array(dielec[9:]), (3, 3))
         borncharge = np.reshape(np.array(borncharge), (nat, 3, 3))
         return dielec, borncharge
-
-    def get_upfs(self):
-        upf_dic = {}
-        for upf in self._list_ATOMIC_SPECIES[1:]:
-            upf_strip = upf.strip()
-            if len(upf_strip)>0:
-                _s = re.split(" +", upf_strip)
-                upf_dic[_s[0]] = _s[2]
-        return upf_dic
 
 

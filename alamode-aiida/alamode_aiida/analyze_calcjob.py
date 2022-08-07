@@ -64,7 +64,7 @@ class analzePhononOptions(object):
 _OUTPUT_FILENAME_DEFAULT = "None"
 
 
-class analyze_phonon_CalcJob(CalcJob):
+class analyze_phonons_CalcJob(CalcJob):
     _PARAM_DEFAULT = {}
 
     @classmethod
@@ -82,9 +82,9 @@ class analyze_phonon_CalcJob(CalcJob):
         spec.input("output_filename", valid_type=Str,
                    default=lambda: Str(_OUTPUT_FILENAME_DEFAULT))
 
-        spec.inputs['metadata']['options']['parser_name'].default = 'alamode.analyze_phonon'
-        spec.inputs['metadata']['options']['input_filename'].default = 'analyze_phonon.in'
-        spec.inputs['metadata']['options']['output_filename'].default = 'analyze_phonon.out'
+        spec.inputs['metadata']['options']['parser_name'].default = 'alamode.analyze_phonons'
+        spec.inputs['metadata']['options']['input_filename'].default = 'analyze_phonons.in'
+        spec.inputs['metadata']['options']['output_filename'].default = 'analyze_phonons.out'
         spec.inputs['metadata']['options']['resources'].default = {
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
 
@@ -99,7 +99,6 @@ class analyze_phonon_CalcJob(CalcJob):
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
         calc_value = self.inputs.calc.value
         cwd = self.inputs.cwd.value
-        print("cwd", cwd)
 
         if calc_value == "kappa_boundary":
             result_filename = self.inputs.file_result.list_object_names()[0]
@@ -169,11 +168,9 @@ class analyze_phonon_CalcJob(CalcJob):
             param = analzePhononOptions(
                 calc_value, **self.inputs.param.get_dict())
 
-            print("param",param)
             cmdline = print_cumulative_thermal_conductivity(None, calc_value,
                                                         result_filename,
                                                         param, return_cmd=True)
-            print("cmdline", cmdline)
             # code
             codeinfo = CodeInfo()
             codeinfo.code_uuid = self.inputs.code.uuid
@@ -192,7 +189,7 @@ class analyze_phonon_CalcJob(CalcJob):
         else:
             raise ValueError(f"unknown calc={calc_value}.")
 
-def _parse_analyze_phonon_kappa_boundary(handle):
+def _parse_analyze_phonons_kappa_boundary(handle):
     data = handle.read().splitlines()
 
     for line in data:
@@ -238,14 +235,12 @@ def _parse_analyze_phonon_kappa_boundary(handle):
     return size, header, values
 
 
-def _parse_analyze_phonon_tau_at_temperature(handler):
+def _parse_analyze_phonons_tau_at_temperature(handler):
     data = handler.read().splitlines()
-    print(data)
     for _i, line in enumerate(data):
         if line.startswith("# Phonon lifetime at temperature"):
             s = line.replace(".", "").split()
             temp = " ".join(s[-2:])
-            print(temp)
         elif line.startswith("# kpoint range"):
             s = line.replace(".", "").split()
             kpoint_range = s[-2:]
@@ -278,14 +273,12 @@ def _parse_analyze_phonon_tau_at_temperature(handler):
     result = {'temp': temp, 'kpoint': kpoint_range, 'mode_range': mode_range}
     return result,  splitted_header,  values
 
-def _parse_analyze_phonon_cumulative(handler):
+def _parse_analyze_phonons_cumulative(handler):
     data = handler.read().splitlines()
-    print(data)
     for _i, line in enumerate(data):
         if line.startswith("# Cumulative thermal conductivity at temperature"):
             s = line.replace(".", "").split()
             temp = " ".join(s[-2:])
-            print(temp)
         elif line.startswith("# mode range"):
             s = line.replace(".", "").split()
             mode_range = s[-2:]
@@ -301,7 +294,6 @@ def _parse_analyze_phonon_cumulative(handler):
             varname = _x
             break
     splitted_header = splitted_header[:_i]
-    print(splitted_header)
 
     varname_unit = varname.split()
     varname = varname_unit[0].strip()
@@ -317,10 +309,9 @@ def _parse_analyze_phonon_cumulative(handler):
     result = {'temp': temp,  'mode_range': mode_range}
     return result,  splitted_header,  values
 
-class analyze_phonon_ParseJob(Parser):
+class analyze_phonons_ParseJob(Parser):
 
     def parse(self, **kwargs):
-        print("parse start")
         calc = self.node.inputs.calc.value
         cwd = self.node.inputs.cwd.value
         prefix = self.node.inputs.prefix.value
@@ -332,19 +323,18 @@ class analyze_phonon_ParseJob(Parser):
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
-                    size, header, values = _parse_analyze_phonon_kappa_boundary(
+                    size, header, values = _parse_analyze_phonons_kappa_boundary(
                         handle)
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
-            print("output_folder", output_folder.list_object_names())
 
             filename = self.node.get_option('output_filename')
             _content = output_folder.get_object_content(filename)
             if self.node.inputs.output_filename.value == _OUTPUT_FILENAME_DEFAULT:
-                filename = f"{prefix}_analyze_phonon_{calc}.dat"
+                filename = f"{prefix}_analyze_phonons_{calc}.dat"
             else:
                 filename = self.node.inputs.output_filename.value
             target_path = os.path.join(cwd, filename)
@@ -367,18 +357,17 @@ class analyze_phonon_ParseJob(Parser):
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
-                    result, header, values = _parse_analyze_phonon_tau_at_temperature(handle)
+                    result, header, values = _parse_analyze_phonons_tau_at_temperature(handle)
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
-            print("output_folder", output_folder.list_object_names())
 
             filename = self.node.get_option('output_filename')
             _content = output_folder.get_object_content(filename)
             if self.node.inputs.output_filename.value == _OUTPUT_FILENAME_DEFAULT:
-                filename = f"{prefix}_analyze_phonon_{calc}.dat"
+                filename = f"{prefix}_analyze_phonons_{calc}.dat"
             else:
                 filename = self.node.inputs.output_filename.value
 
@@ -402,18 +391,17 @@ class analyze_phonon_ParseJob(Parser):
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
-                    result, header, values = _parse_analyze_phonon_cumulative(handle)
+                    result, header, values = _parse_analyze_phonons_cumulative(handle)
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
-            print("output_folder", output_folder.list_object_names())
 
             filename = self.node.get_option('output_filename')
             _content = output_folder.get_object_content(filename)
             if self.node.inputs.output_filename.value == _OUTPUT_FILENAME_DEFAULT:
-                filename = f"{prefix}_analyze_phonon_{calc}.dat"
+                filename = f"{prefix}_analyze_phonons_{calc}.dat"
             else:
                 filename = self.node.inputs.output_filename.value
 
