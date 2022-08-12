@@ -38,9 +38,9 @@ from os.path import expanduser
 
 from .nodebank import NodeBank
 from .aiida_support import wait_for_node_finished
-from .ase_support import load_atoms
+from alamode_aiida.ase_support import load_atoms
 
-from .lammps_support import write_lammps_data
+from alamode_aiida.lammps_support import write_lammps_data
 
 
 # load types

@@ -311,5 +311,7 @@ if __name__ == '__main__':
         print("")
         codeobj.generate_structures(args.prefix, header_list, disp_list)
         print("All input files are created.")
+        import sys
+        sys.exit(0)
     else:
         print_displacement_stdout(disp_list, codeobj)

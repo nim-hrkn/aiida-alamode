@@ -4,7 +4,7 @@
     "entry_points" : {
         "aiida.workflows": [
             "alamode.dispall_pwx = alamode_aiida.alldisp_pwx_workchain: alldisp_pwx_WorkChain",
-            "alamode.dispall_lammps = alamode_aiida.alldisp_lammps_workchain: alldisp_lammps_WorkChain",
+            "alamode.all_displace_lammps = alamode_aiida.alldisp_lammps_workchain: alldisplaces_lammps_WorkChain",
             "alamode.displace_putfiles = alamode_aiida.tools: DisplacePutFiles",
             "alamode.extract = alamode_aiida.tools: ExtractWorkChain",
             "alamode.phband_img = alamode_aiida.tools: PhbandWorkChain",
@@ -18,7 +18,9 @@
             "alamode.alm_opt   = alamode_aiida.alm_calcjob: almOptCalcJob",
             "alamode.anphon = alamode_aiida.alm_calcjob: anphon_CalcJob",
             "alamode.displace_pf   = alamode_aiida.tools: displace_pf_Calcjob",
+            "alamode.displace_ALM_pf   = alamode_aiida.tools: displace_ALM_pf_Calcjob",
             "alamode.displace_random   = alamode_aiida.tools: displace_random_Calcjob",
+            "alamode.extract   = alamode_aiida.extract_calcjob: extractCalcJob",
             "alamode.analyze_phonons = alamode_aiida.analyze_calcjob: analyze_phonons_CalcJob"
 	],
 	"aiida.parsers":  [
@@ -27,6 +29,7 @@
             "alamode.alm   = alamode_aiida.alm_calcjob: alm_ParseJob",
             "alamode.anphon = alamode_aiida.alm_calcjob: anphon_ParseJob",
             "alamode.displace   = alamode_aiida.tools: displace_ParseJob",
+            "alamode.extract   = alamode_aiida.extract_calcjob: extract_ParseJob",
             "alamode.analyze_phonons = alamode_aiida.analyze_calcjob: analyze_phonons_ParseJob"
         ]
     }

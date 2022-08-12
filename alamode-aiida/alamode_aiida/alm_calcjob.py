@@ -58,7 +58,7 @@ def _parse_alm_suggest(filename=None, handle=None):
         elif "Suggested displacement patterns" in line:
             while True:
                 line = next(data_iter).strip()
-                if len(line)==0:
+                if len(line) == 0:
                     break
                 s = line.split(":")
                 disp_pattern[s[0].strip()] = s[-1].strip()
@@ -84,11 +84,9 @@ def _alm_suggest_retrieve_pattern_file(retrieved: Folder, prefix: Str,
     prefix_value = prefix.value
     folderdata = FolderData()
     for filename in retrieved.list_object_names():
-
         if fnmatch(filename, f"{prefix_value}.pattern_*"):
             _content = retrieved.get_object_content(filename)
             target_path = os.path.join(cwd_value, filename)
-
 
             with open(target_path, "w") as f:
                 f.write(_content)
@@ -104,6 +102,7 @@ def _parse_alm_opt(handle):
     constraint = {}
     optimization = {}
     outputfiles = {}
+    warning_messages = []
     while True:
         line = next(data_iter)
 
@@ -121,6 +120,10 @@ def _parse_alm_opt(handle):
         elif "Number of free HARMONIC FCs" in line:
             s = line.split(":")
             constraint["num_free_HARMINC_FCs"] = int(s[-1])
+
+        elif "WARNING" in line:
+            s = line.split(":")
+            warning_messages.append(s[1].strip())
 
         elif "LMODEL" in line:
             s = line.split("=")
@@ -148,8 +151,11 @@ def _parse_alm_opt(handle):
             s = line.split(":")
             outputfiles["input_ANPHON"] = s[-1].strip()
             break
-    return {"constraint": constraint, "optimization": optimization,
-            "outputfiles": outputfiles}
+    results = {"constraint": constraint, "optimization": optimization,
+               "outputfiles": outputfiles}
+    if len(warning_messages) > 0:
+        results["warning"] = warning_messages
+    return results
 
 
 class almBaseCalcJob(CalcJob):
@@ -183,7 +189,7 @@ class almBaseCalcJob(CalcJob):
         spec.inputs['metadata']['options']['resources'].default = {
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
 
-        spec.output('result', valid_type=Dict)
+        spec.output('results', valid_type=Dict)
 
 
 class almSuggestCalcJob(almBaseCalcJob):
@@ -200,6 +206,8 @@ class almSuggestCalcJob(almBaseCalcJob):
         super().define(spec)
         spec.expose_inputs(almBaseCalcJob)
         spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE))
+        spec.inputs['metadata']['options']['input_filename'].default = 'alm_suggest.in'
+        spec.inputs['metadata']['options']['output_filename'].default = 'alm_suggest.out'        
         spec.expose_outputs(almBaseCalcJob)
         spec.output('pattern_folder', valid_type=FolderData)
 
@@ -213,8 +221,6 @@ class almSuggestCalcJob(almBaseCalcJob):
         for iorder in range(1, norder+1):
             pattern_file = _alm_pattern_file(alm_prefix_value, iorder)
             pattern_files.append(pattern_file)
-
-
 
         # make inputfile
         structure = self.inputs.structure.get_ase()
@@ -264,8 +270,9 @@ class almOptCalcJob(almBaseCalcJob):
         spec.input('dfset_file', valid_type=(Str, SinglefileData),
                    default=lambda: Str(cls._DFSET_FILE))
         spec.input('fc2xml_file', valid_type=(Str, SinglefileData),
-                default=lambda: Str(cls._FC2XML_FILE))
-
+                   default=lambda: Str(cls._FC2XML_FILE))
+        spec.inputs['metadata']['options']['input_filename'].default = 'alm_opt.in'
+        spec.inputs['metadata']['options']['output_filename'].default = 'alm_opt.out' 
         spec.expose_outputs(almOptCalcJob)
         # spec.output('pattern_folder', valid_type=FolderData)
         spec.output('input_ANPHON_file', valid_type=SinglefileData)
@@ -284,7 +291,7 @@ class almOptCalcJob(almBaseCalcJob):
             with open(target_path, "w") as f:
                 f.write(self.inputs.dfset_file.get_content())
         folder.insert_path(os.path.join(cwd, DFSETfilename),
-                            dest_name=DFSETfilename)
+                           dest_name=DFSETfilename)
 
         if isinstance(self.inputs.fc2xml_file, SinglefileData):
             fc2xmlfilename = self.inputs.fc2xml_file.attributes["filename"]
@@ -295,7 +302,7 @@ class almOptCalcJob(almBaseCalcJob):
                 with open(target_path, "w") as f:
                     f.write(self.inputs.fc2xml_file.get_content())
             folder.insert_path(os.path.join(cwd, fc2xmlfilename),
-                                dest_name=fc2xmlfilename)
+                               dest_name=fc2xmlfilename)
         elif isinstance(self.inputs.fc2xml_file, Str):
             _target_path = self.inputs.fc2xml_file.value
             if len(_target_path) > 0:
@@ -310,7 +317,8 @@ class almOptCalcJob(almBaseCalcJob):
         else:
             param["optimize"] = {"DFSET": DFSETfilename}
         if isinstance(self.inputs.fc2xml_file, SinglefileData):
-            param["optimize"]["FC2XML"] = self.inputs.fc2xml_file.list_object_names()[0]
+            param["optimize"]["FC2XML"] = self.inputs.fc2xml_file.list_object_names()[
+                0]
         if isinstance(self.inputs.fc2xml_file, Str) and len(self.inputs.fc2xml_file.value) > 0:
             target_path = self.inputs.fc2xml_file.value
             _, fc2xmlfilename = os.path.split(target_path)
@@ -345,12 +353,10 @@ class alm_ParseJob(Parser):
 
     def parse(self, **kwargs):
 
-
         mode = self.node.inputs.mode.value
         cwd = self.node.inputs.cwd.value
         alm_prefix_node = self.node.inputs.prefix
         prefix = self.node.inputs.prefix.value
-
 
         if mode == "optimize":
             mode = "opt"
@@ -369,9 +375,12 @@ class alm_ParseJob(Parser):
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
+
             filelist = [self.node.get_option('input_filename'),
                         self.node.get_option('output_filename')]
-            local_filelist = [f"alm_{mode}_{prefix}.in", f"alm_{mode}_{prefix}.out"]
+            local_filelist = [
+                f"alm_{mode}_{prefix}.in", 
+                f"alm_{mode}_{prefix}.out"]
             for filename, localfilename in zip(filelist, local_filelist):
                 if filename in output_folder.list_object_names():
                     _content = output_folder.get_object_content(filename)
@@ -387,7 +396,7 @@ class alm_ParseJob(Parser):
                                                                 self.node.inputs.cwd,
                                                                 self.node.inputs.norder)
 
-            self.out('result', Dict(dict=result))
+            self.out('results', Dict(dict=result))
             self.out('pattern_folder', pattern_folder)
 
         elif mode == "opt":
@@ -404,11 +413,11 @@ class alm_ParseJob(Parser):
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
-
-
             filelist = [self.node.get_option('input_filename'),
                         self.node.get_option('output_filename')]
-            local_filelist = [f"alm_{mode}_{prefix}.in", f"alm_{mode}_{prefix}.out"]
+            local_filelist = [
+                f"alm_{mode}_{prefix}.in", 
+                f"alm_{mode}_{prefix}.out"]
             for filename, localfilename in zip(filelist, local_filelist):
                 if filename in output_folder.list_object_names():
                     _content = output_folder.get_object_content(filename)
@@ -419,15 +428,12 @@ class alm_ParseJob(Parser):
                     raise ValueError(
                         f"no filename={filename} in retrieved data.")
 
-
             filename = result["outputfiles"]["input_ANPHON"]
             _content = output_folder.get_object_content(filename)
             target_path = os.path.join(cwd, filename)
             with open(target_path, "w") as f:
                 f.write(_content)
             input_anphon_file = SinglefileData(target_path)
-
-
 
             filename = result["outputfiles"]["force_constants"]
             _content = output_folder.get_object_content(filename)
@@ -436,12 +442,10 @@ class alm_ParseJob(Parser):
                 f.write(_content)
             force_constants_file = SinglefileData(target_path)
 
- 
-
             self.out("input_ANPHON_file", input_anphon_file)
             self.out("force_constants_file", force_constants_file)
 
-            self.out('result', Dict(dict=result))
+            self.out('results', Dict(dict=result))
 
 
 class anphon_CalcJob(CalcJob):
@@ -449,10 +453,10 @@ class anphon_CalcJob(CalcJob):
     _NORDER = 1  # dummy
     _PREFIX_DEFAULT = "alamode"
     _MODE = "phonon"
-    _PHONONS_MODE='dos'
+    _PHONONS_MODE = 'dos'
     _PARAM = {}
     _KAPPA_SPEC = 0
-    _QMESH_LIST = [20,20,20]
+    _QMESH_LIST = [20, 20, 20]
 
     @classmethod
     def define(cls, spec):
@@ -465,19 +469,23 @@ class anphon_CalcJob(CalcJob):
         spec.input('norder', valid_type=Int, default=lambda: Int(cls._NORDER))
         spec.input('fcsxml', valid_type=SinglefileData)
         spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE))
-        spec.input('phonons_mode', valid_type=Str, default=lambda: Str(cls._PHONONS_MODE))
-        spec.input('kappa_spec', valid_type=Int, default=lambda: Int(cls._KAPPA_SPEC))
+        spec.input('phonons_mode', valid_type=Str,
+                   default=lambda: Str(cls._PHONONS_MODE))
+        spec.input('kappa_spec', valid_type=Int,
+                   default=lambda: Int(cls._KAPPA_SPEC))
         # spec.input('kparam', valid_type=Dict, default=lambda: Dict(dict=cls._PARAM))
-        spec.input('qmesh', valid_type=List, default=lambda: List(list=cls._QMESH_LIST))
-        spec.input('param', valid_type=Dict, default=lambda: Dict(dict=cls._PARAM))
+        spec.input('qmesh', valid_type=List,
+                   default=lambda: List(list=cls._QMESH_LIST))
+        spec.input('param', valid_type=Dict,
+                   default=lambda: Dict(dict=cls._PARAM))
 
         spec.inputs['metadata']['options']['parser_name'].default = 'alamode.anphon'
         spec.inputs['metadata']['options']['input_filename'].default = f'anphon.in'
         spec.inputs['metadata']['options']['output_filename'].default = f'anphon.out'
         spec.inputs['metadata']['options']['resources'].default = {
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
-            
-        spec.output('result', valid_type=Dict)
+
+        spec.output('results', valid_type=Dict)
         spec.output('phband_file', valid_type=SinglefileData)
         spec.output('phdos_file', valid_type=SinglefileData)
         spec.output('thermo_file', valid_type=SinglefileData)
@@ -493,15 +501,15 @@ class anphon_CalcJob(CalcJob):
         cwd = self.inputs.cwd.value
 
         if mode == "phonons":
-            
+
             # copy dfset_filename
             fcsxml = self.inputs.fcsxml.attributes["filename"]
-            target_path = os.path.join(cwd,fcsxml)
+            target_path = os.path.join(cwd, fcsxml)
             if not os.path.isfile(target_path):
-                with open(target_path,"w") as f:
+                with open(target_path, "w") as f:
                     f.write(self.inputs.fcsxml.get_content())
-            folder.insert_path(target_path, 
-                            dest_name=fcsxml)
+            folder.insert_path(target_path,
+                               dest_name=fcsxml)
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -514,26 +522,27 @@ class anphon_CalcJob(CalcJob):
                 if False:
                     if "kspacing" in self.inputs.kparam.attributes:
                         kspacing = self.inputs.kparam.attributes["kspacing"]
-                        kpoint_param = make_alm_kpoint(structure, 2, kspacing=kspacing)
+                        kpoint_param = make_alm_kpoint(
+                            structure, 2, kspacing=kspacing)
                     else:
                         kpoint_param = None
                 qmesh_value = self.inputs.qmesh.get_list()
-                kpoint_param = ["2", " ".join(list(map(str,qmesh_value)))]
+                kpoint_param = ["2", " ".join(list(map(str, qmesh_value)))]
             else:
                 raise ValueError("unknown type={type}")
 
             other_param = self.inputs.param.get_dict()
             if "general" in other_param:
-                other_param["general"].update( {"FCSXML": fcsxml})
+                other_param["general"].update({"FCSXML": fcsxml})
             else:
-                other_param["general"]={"FCSXML": fcsxml}
+                other_param["general"] = {"FCSXML": fcsxml}
             if "kpoint" in other_param and kpoint_param is not None:
                 other_param["kpoint"].update(kpoint_param)
             else:
-                other_param["kpoint"]=kpoint_param
+                other_param["kpoint"] = kpoint_param
 
             alm_param = atoms_to_alm_in(mode, structure, dic=other_param,
-                                        norder= norder, 
+                                        norder=norder,
                                         prefix=alm_prefix_value)
 
             with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
@@ -550,7 +559,7 @@ class anphon_CalcJob(CalcJob):
             calcinfo.codes_info = [codeinfo]
 
             retrieve_list = [self.options.input_filename,
-                            self.options.output_filename]
+                             self.options.output_filename]
             if phonons_mode == "band":
                 for ext in ["bands"]:
                     filename = f"{alm_prefix_value}.{ext}"
@@ -564,53 +573,52 @@ class anphon_CalcJob(CalcJob):
             return calcinfo
 
         elif mode == "RTA":
-            
+
             # copy dfset_filename
             fcsxml = self.inputs.fcsxml.attributes["filename"]
             target_path = os.path.join(cwd, fcsxml)
             if not os.path.isfile(target_path):
-                with open(target_path,"w") as f:
+                with open(target_path, "w") as f:
                     f.write(self.inputs.fcsxml.get_content())
-            folder.insert_path(target_path, 
-                            dest_name=fcsxml)
+            folder.insert_path(target_path,
+                               dest_name=fcsxml)
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
             alm_prefix_value = self.inputs.prefix.value
- 
+
             if False:
                 if "kspacing" in self.inputs.kparam.attributes:
                     kspacing = self.inputs.kparam.attributes["kspacing"]
-                    kpoint_param = make_alm_kpoint(structure, 2, kspacing=kspacing)
+                    kpoint_param = make_alm_kpoint(
+                        structure, 2, kspacing=kspacing)
                 else:
                     kpoint_param = make_alm_kpoint(structure, 2)
 
             qmesh_value = self.inputs.qmesh.get_list()
-            kpoint_param = ["2", " ".join(list(map(str,qmesh_value)))]
- 
+            kpoint_param = ["2", " ".join(list(map(str, qmesh_value)))]
+
             other_param = self.inputs.param.get_dict()
             if "general" in other_param:
-                other_param["general"].update( {"FCSXML": fcsxml})
+                other_param["general"].update({"FCSXML": fcsxml})
             else:
-                other_param["general"]={"FCSXML": fcsxml}
+                other_param["general"] = {"FCSXML": fcsxml}
             if "kpoint" in other_param:
                 other_param["kpoint"].update(kpoint_param)
             else:
-                other_param["kpoint"]=kpoint_param
-
+                other_param["kpoint"] = kpoint_param
 
             kappa_spec_value = self.inputs.kappa_spec.value
-            if kappa_spec_value>0:
+            if kappa_spec_value > 0:
                 if "analysis" in other_param:
-                    other_param["analysis"].update({"KAPPA_SPEC":kappa_spec_value})
+                    other_param["analysis"].update(
+                        {"KAPPA_SPEC": kappa_spec_value})
                 else:
-                    other_param["analysis"] = {"KAPPA_SPEC":kappa_spec_value}
-
+                    other_param["analysis"] = {"KAPPA_SPEC": kappa_spec_value}
 
             alm_param = atoms_to_alm_in(mode, structure, dic=other_param,
-                                        norder= norder, 
+                                        norder=norder,
                                         prefix=alm_prefix_value)
-
 
             with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
                 make_alm_in(alm_param, handle=handle)
@@ -626,7 +634,7 @@ class anphon_CalcJob(CalcJob):
             calcinfo.codes_info = [codeinfo]
 
             retrieve_list = [self.options.input_filename,
-                            self.options.output_filename]
+                             self.options.output_filename]
 
             if kappa_spec_value == 0:
                 for ext in ["kl", "result"]:
@@ -709,7 +717,7 @@ def _parse_anphon_RTA(handle):
         result["result_filename"] = f"{prefix}.result"
         return result
     else:
-        raise ValueError("failed to get result.")      
+        raise ValueError("failed to get result.")
 
 
 class anphon_ParseJob(Parser):
@@ -741,7 +749,6 @@ class anphon_ParseJob(Parser):
             elif kappa_spec_value == 1:
                 kappa_spec_str = "_spec"
 
-
             filename = self.node.get_option('input_filename')
             _content = output_folder.get_object_content(filename)
             filename = f"{prefix}_anphon_{mode}{kappa_spec_str}.in"
@@ -759,7 +766,8 @@ class anphon_ParseJob(Parser):
             if kappa_spec_value == 0:
                 label_list = ["result_filename", "kl_filename"]
             elif kappa_spec_value == 1:
-                label_list = ["result_filename", "kl_filename", "kl_spec_filename"]
+                label_list = ["result_filename",
+                              "kl_filename", "kl_spec_filename"]
 
             for label in label_list:
                 filename = result[label]
@@ -768,9 +776,9 @@ class anphon_ParseJob(Parser):
                 with open(target_path, "w") as f:
                     f.write(_content)
                 self.out(label.replace("filename", "file"),
-                        SinglefileData(target_path))
+                         SinglefileData(target_path))
 
-            self.out('result', Dict(dict=result))
+            self.out('results', Dict(dict=result))
 
         elif mode == "phonons":
             try:
@@ -788,7 +796,6 @@ class anphon_ParseJob(Parser):
 
             cwd = self.node.inputs.cwd.value
             phonons_mode = self.node.inputs.phonons_mode.value
-
 
             filename = self.node.get_option('input_filename')
             _content = output_folder.get_object_content(filename)
@@ -810,6 +817,6 @@ class anphon_ParseJob(Parser):
                 with open(target_path, "w") as f:
                     f.write(_content)
                 self.out(label.replace("filename", "file"),
-                        SinglefileData(target_path))
+                         SinglefileData(target_path))
 
-            self.out('result', Dict(dict=result))
+            self.out('results', Dict(dict=result))
