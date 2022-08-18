@@ -15,22 +15,8 @@ import numpy as np
 import optparse
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import sys
 
 # parser options
-usage = "usage: %prog [options] file1.dos file2.dos ... "
-parser = optparse.OptionParser(usage=usage)
-
-parser.add_option("--pdos", action="store_true", dest="print_pdos", default=False,
-                  help="print atom-projected phonon DOS")
-parser.add_option("--nokey", action="store_false", dest="print_key", default=True,
-                  help="don't print the key in the figure")
-parser.add_option("-u", "--unit", action="store", type="string", dest="unitname", default="kayser",
-                  help="print the band dispersion in units of UNIT. Available options are kayser, meV, and THz", metavar="UNIT")
-parser.add_option("--emin", action="store", type="float", dest="emin",
-                  help="minimum value of the energy axis")
-parser.add_option("--emax", action="store", type="float", dest="emax",
-                  help="maximum value of the energy axis")
 
 
 # font styles
@@ -133,21 +119,13 @@ def sum_atom_projected_dos(pdos_tmp, natoms_tmp):
 
     return pdos_sum
 
-def run_plot(files, unitname, print_pdos, print_key, emin=None, emax=None,
-            filename: str=None, show=True):
-    """
-    Args:
-        filename (str, optional): image filename if not None. Defaults to None.
-        show (bool, optional): execute plt.show() or not. Defaults to True.
-    """
 
-    fig,ax = plt.subplots()
-
+def run_plot(files,  unitname='kayser', print_pdos=False, print_key=False, emin=None, emax=None, show=True):
     energy_axis = []
     dos_merged = []
 
-    for _file in files:
-        data_tmp = np.loadtxt(_file, dtype=float)
+    for file in files:
+        data_tmp = np.loadtxt(file, dtype=float)
         energy_axis.append(data_tmp[:, 0])
         dos_merged.append(data_tmp[:, 1:])
 
@@ -160,7 +138,7 @@ def run_plot(files, unitname, print_pdos, print_key, emin=None, emax=None,
     for i in range(len(dos_merged)):
         counter_line = counter_line % 12
 
-        ax.plot(energy_axis[i][:], dos_merged[i][:, 0],
+        plt.plot(energy_axis[i][:], dos_merged[i][:, 0],
                  linestyle=lsty[counter_line], color=color[counter_line], label="File" + str(i + 1) + ".Total")
 
         counter_line += 1
@@ -177,19 +155,19 @@ def run_plot(files, unitname, print_pdos, print_key, emin=None, emax=None,
 
                 for j in range(len(pdos[0, :])):
 
-                    ax.plot(energy_axis[i][:], pdos[:, j], linestyle=lsty[counter_line],
+                    plt.plot(energy_axis[i][:], pdos[:, j], linestyle=lsty[counter_line],
                              color=color[counter_line], label="File" + str(i + 1) + "." + symbols[j])
 
                     counter_line += 1
 
     if unitname.lower() == "mev":
-        ax.set_xlabel("Frequency (meV)", fontsize=16)
+        plt.xlabel("Frequency (meV)", fontsize=16)
     elif unitname.lower() == "thz":
-        ax.set_xlabel("Frequency (THz)", fontsize=16)
+        plt.xlabel("Frequency (THz)", fontsize=16)
     else:
-        ax.set_xlabel("Frequency (cm${}^{-1}$)", fontsize=16)
+        plt.xlabel("Frequency (cm${}^{-1}$)", fontsize=16)
 
-    ax.set_ylabel("Phonon DOS", fontsize=16, labelpad=20)
+    plt.ylabel("Phonon DOS", fontsize=16, labelpad=20)
 
     if emin == None and emax == None:
         factor = 1.00
@@ -205,29 +183,34 @@ def run_plot(files, unitname, print_pdos, print_key, emin=None, emax=None,
             print("Warning: emin > emax")
 
     ymax *= 1.05
-    ax.set_xlim([xmin, xmax])
-    ax.set_ylim([ymin, ymax])
+    plt.axis([xmin, xmax, ymin, ymax])
 
-    #ax.set_xticks(fontsize=16)
-    #ax.set_yticks([])
+    plt.xticks(fontsize=16)
+    plt.yticks([])
 
     if print_key:
-        ax.legend(loc='upper right', prop={'size': 12})
+        plt.legend(loc='upper right', prop={'size': 12})
 
-    fig.tight_layout()
-    if filename is not None:
-        fig.savefig(filename)
+    plt.tight_layout()
     if show:
-        fig.show()
-    plt.close(fig)
-    return filename
+        plt.show()
+
 
 if __name__ == '__main__':
 
-    try:
-        mpl.use("Qt5agg")
-    except:
-        pass
+    usage = "usage: %prog [options] file1.dos file2.dos ... "
+    parser = optparse.OptionParser(usage=usage)
+
+    parser.add_option("--pdos", action="store_true", dest="print_pdos", default=False,
+                      help="print atom-projected phonon DOS")
+    parser.add_option("--nokey", action="store_false", dest="print_key", default=True,
+                      help="don't print the key in the figure")
+    parser.add_option("-u", "--unit", action="store", type="string", dest="unitname", default="kayser",
+                      help="print the band dispersion in units of UNIT. Available options are kayser, meV, and THz", metavar="UNIT")
+    parser.add_option("--emin", action="store", type="float", dest="emin",
+                      help="minimum value of the energy axis")
+    parser.add_option("--emax", action="store", type="float", dest="emax",
+                      help="maximum value of the energy axis")
 
     options, args = parser.parse_args()
     files = args[0:]
@@ -236,10 +219,9 @@ if __name__ == '__main__':
     if nfiles == 0:
         print("Usage: plotdos.py [options] file1.dos file2.dos ...")
         print("For details of available options, please type\n$ python plotdos.py -h")
-        sys.exit(1)
+        exit(1)
     else:
         print("Number of files = %d" % nfiles)
 
-    run_plot(files, options.unitname, options.print_pdos, options.print_key, 
-            options.emin, options.emax, show=True)
-    
+    run_plot(files,  options.unitname, 
+             options.print_pdos, options.print_key, options.emin, options.emax)

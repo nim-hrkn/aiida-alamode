@@ -17,7 +17,7 @@ from aiida.orm import QueryBuilder
 
 import aiida
 
-from alamode_aiida.data_loader import load_anphon_kl, load_anphon_kl_spec
+# from alamode_aiida.io import load_anphon_kl, load_anphon_kl_spec
 from ase.io.espresso import write_espresso_in
 from ase.io.lammpsdata import read_lammps_data
 from ase.build import make_supercell
@@ -36,11 +36,12 @@ import spglib
 
 from os.path import expanduser
 
+from traitlets import default
+
 from .nodebank import NodeBank
 from .aiida_support import wait_for_node_finished
-from alamode_aiida.ase_support import load_atoms
-
-from alamode_aiida.lammps_support import write_lammps_data
+from alamode_aiida.io import load_atoms
+from alamode_aiida.io import write_lammps_data
 
 
 # load types
@@ -53,38 +54,58 @@ List = DataFactory('list')
 
 @calcfunction
 def make_atoms_supercell(atoms: StructureData,
-                         diag: ArrayData,
+                         factor: ArrayData,
                          ) -> StructureData:
-    """diag倍のsupercellをつくる。
+    """factor倍のsupercellをつくる。
 
     """
     atoms = atoms.get_ase()
     print("atoms", atoms)
     # supercell
-    _diag = diag.get_array('diag')
-    P = np.diag(_diag)  # define supercell.
-    print("P", P)
+    P = factor.get_array('factor')
+
     super_structure = make_supercell(atoms, P=P)  # ase function
     super_structure = StructureData(ase=super_structure)
-    print("super", super_structure.get_ase())
     return super_structure
 
 
 @calcfunction
-def make_atoms_primcell(atoms: StructureData
+def make_atoms_primcell(atoms: StructureData, symprec: Float
                         ) -> StructureData:
     """primitive cell構造をつくる。
 
     """
     atoms = atoms.get_ase()
+    symprec = symprec.value
     # primitive cell
     cell, scaled_positions, numbers = spglib.find_primitive(
-        atoms)
+        atoms, symprec=symprec)
     prim_structure = Atoms(cell=cell, scaled_positions=scaled_positions,
                            numbers=numbers)
     prim_structure = StructureData(ase=prim_structure)
     print("prim", prim_structure.get_ase())
     return prim_structure
+
+
+@calcfunction
+def make_atoms_standardizedcell(atoms: StructureData, symprec: Float
+                                ) -> StructureData:
+    """standardized cell構造をつくる。
+
+    """
+    atoms = atoms.get_ase()
+    symprec = symprec.value
+    # primitive cell
+    cell, scaled_positions, numbers = spglib.standardize_cell(atoms,
+                                                              to_primitive=False,
+                                                              no_idealize=False,
+                                                              symprec=symprec)
+
+    standardized_structure = Atoms(cell=cell, scaled_positions=scaled_positions,
+                                   numbers=numbers)
+    standardized_structure = StructureData(ase=standardized_structure)
+    print("standardized", standardized_structure.get_ase())
+    return standardized_structure
 
 
 @calcfunction
@@ -109,68 +130,89 @@ def structure_to_SinglefileData(atoms: StructureData,
 
 
 @calcfunction
-def join_path(dir: Str, name: Str):
-    path = os.path.join(dir.value, name.value)
-    return Str(path)
+def _path_join(cwd: Str, template: Str, value: Str):
+    filename = template.value.replace("{format}", value.value)
+    return Str(os.path.join(cwd.value, filename))
 
 
 class PutStructure(WorkChain):
     """structure_filenameで指定された構造をprimicell, supercellのファイルに直す。
-    長周期はdiagで指定する。
+    長周期はfactorで指定する。
 
     AiiDAのStructureData, SinglefileDataがファイルのpathが得られないので用いない。
     すべてStrのフィル名をcwdディレクトリに出力する。
     """
-    _PRIM_FILENAME = "primcell.dat"
-    _SUPER_FILENAME = "supercell.dat"
+    _CWD = ""
+    _PRIM_FILENAME = "primcell.{format}"
+    _STANDARDIZED_FILENAME = "standardizedcell.{format}"
+    _SUPER_FILENAME = "supercell.{format}"
+    _SYMPREC = 1e-5
 
     @classmethod
     def define(cls, spec):
         super().define(spec)
-        spec.input("cwd", valid_type=Str)
+        spec.input("cwd", valid_type=Str, default=lambda: Str(cls._CWD))
         spec.input("structure", valid_type=StructureData)
-        spec.input("diag", valid_type=ArrayData)
-        spec.input("output_format", valid_type=Str)
-        spec.input("primcell_filename", valid_type=Str,
-                   default=lambda: Str(cls._PRIM_FILENAME))
-        spec.input("supercell_filename", valid_type=Str,
-                   default=lambda: Str(cls._SUPER_FILENAME))
-        spec.outline(cls.make_path,
+        spec.input("factor", valid_type=ArrayData)
+        spec.input("format", valid_type=Str)
+        spec.input("symprec", valid_type=Float,
+                   default=lambda: Float(cls._SYMPREC))
+
+        spec.outline(cls.make_cwd,
                      cls.put_primcell,
+                     cls.put_standarizedcell,
                      cls.put_supercell)
-        spec.output("primstructure_filepath", valid_type=Str)
-        spec.output("superstructure_filepath", valid_type=Str)
+
         spec.output("primstructure", valid_type=StructureData)
+        spec.output("standardizedstructure", valid_type=StructureData)
         spec.output("superstructure", valid_type=StructureData)
+
         spec.output("primstructure_file", valid_type=SinglefileData)
+        spec.output("standardizedstructure_file", valid_type=SinglefileData)
         spec.output("superstructure_file", valid_type=SinglefileData)
 
-    def make_path(self):
-        superstructure_filepath = join_path(self.inputs.cwd,
-                                            self.inputs.supercell_filename)
-        self.ctx.superstructure_filepath = superstructure_filepath
-        primstructure_filepath = join_path(self.inputs.cwd,
-                                           self.inputs.primcell_filename)
-        self.ctx.primstructure_filepath = primstructure_filepath
-        self.out("primstructure_filepath", self.ctx.primstructure_filepath)
-        self.out("superstructure_filepath", self.ctx.superstructure_filepath)
+    def make_cwd(self):
+        if len(self.inputs.cwd.value) > 0:
+            os.makedirs(self.inputs.cwd.value, exist_ok=True)
 
     def put_primcell(self):
-        primstructure = make_atoms_primcell(atoms=self.inputs.structure)
+        primstructure = make_atoms_primcell(
+            atoms=self.inputs.structure, symprec=self.inputs.symprec)
         self.out('primstructure', primstructure)
 
-        primstructure_file = structure_to_SinglefileData(atoms=primstructure,
-                                                         path=self.ctx.primstructure_filepath,
-                                                         format=self.inputs.output_format)
-        self.out("primstructure_file", primstructure_file)
+        if len(self.inputs.cwd.value) > 0:
+            filepath = _path_join(self.inputs.cwd, Str(
+                self._PRIM_FILENAME), self.inputs.format)
+            primstructure_file = structure_to_SinglefileData(atoms=primstructure,
+                                                             path=filepath,
+                                                             format=self.inputs.format)
+            self.out("primstructure_file", primstructure_file)
+
+    def put_standarizedcell(self):
+        standardizedstructure = make_atoms_standardizedcell(
+            atoms=self.inputs.structure, symprec=self.inputs.symprec)
+        self.out('standardizedstructure', standardizedstructure)
+        self.ctx.standardizedstructure = standardizedstructure
+
+        if len(self.inputs.cwd.value) > 0:
+            filepath = _path_join(self.inputs.cwd, Str(
+                self._STANDARDIZED_FILENAME), self.inputs.format)
+            superstructure_file = structure_to_SinglefileData(atoms=standardizedstructure,
+                                                              path=filepath,
+                                                              format=self.inputs.format)
+            self.out("standardizedstructure_file", superstructure_file)
 
     def put_supercell(self):
         superstructure = \
-            make_atoms_supercell(atoms=self.inputs.structure,
-                                 diag=self.inputs.diag)
+            make_atoms_supercell(atoms=self.ctx.standardizedstructure,
+                                 factor=self.inputs.factor)
         self.out('superstructure', superstructure)
-        superstructure_file = structure_to_SinglefileData(atoms=superstructure,
-                                                          path=self.ctx.superstructure_filepath,
-                                                          format=self.inputs.output_format)
 
-        self.out("superstructure_file", superstructure_file)
+        if len(self.inputs.cwd.value) > 0:
+            filepath = _path_join(self.inputs.cwd, Str(
+                self._SUPER_FILENAME), self.inputs.format)
+            superstructure_file = structure_to_SinglefileData(atoms=superstructure,
+                                                              path=filepath,
+                                                              format=self.inputs.format)
+
+            self.out("superstructure_file", superstructure_file)

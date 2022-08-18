@@ -2,6 +2,10 @@ import json
 import os
 from aiida.orm import load_node
 
+from .aiida_support import wait_for_node_finished
+from aiida.engine import calcfunction, workfunction, submit, run, run_get_node
+
+from datetime import datetime
 
 class NodeBank:
     """実行するごとにノードをstoreせずに過去のノードをloadするために用いる。
@@ -35,10 +39,10 @@ class NodeBank:
         with open(filepath, "w") as f:
             json.dump(self.dic, f)
 
-    def load(self, label: str, force=None, raise_error=False):
+    def load(self, label: str, raise_error: bool=True):
 
         self.load_json()
-        if label in self.dic:
+        if label in list(self.dic.keys()):
             if self._KEY == "pk":
                 pk = self.dic[label]
                 return load_node(pk)
@@ -64,7 +68,7 @@ class NodeBank:
 
     def load_or_dump(self, label: str, node):
         print("debug, node", node)
-        _t = self.load(label, node, raise_error=False)
+        _t = self.load(label, raise_error=False)
         print("debug, load", _t)
         if _t is None or self.force:
             print("debug, force dump")
@@ -72,3 +76,37 @@ class NodeBank:
             return node
         else:
             return _t
+
+    def load_code_or_wait_for_node(self, key,  builder, sec=2):
+        starttime = datetime.now()
+
+        g_alm_suggest_future = self.load(key, raise_error=False)
+        print(g_alm_suggest_future)
+        if g_alm_suggest_future is None:
+            # if True:
+            g_alm_suggest_future = submit(builder)  # temporary run(), use submit()
+            print(g_alm_suggest_future)
+            wait_for_node_finished(g_alm_suggest_future, sec)
+            if g_alm_suggest_future.is_finished_ok:
+                self.dump(key, g_alm_suggest_future)        
+            else:
+                raise 
+        endtime = datetime.now()
+        print(endtime-starttime)
+        return g_alm_suggest_future
+
+    def load_workchain_or_wait_for_node(self, key, workchain, inputs, sec=2):
+        starttime = datetime.now()
+
+        lammps_all = self.load(key,raise_error=False )
+        if lammps_all is None:
+            lammps_all = submit(workchain, **inputs)
+            wait_for_node_finished(lammps_all, sec)
+            print(lammps_all.is_finished_ok)
+            if lammps_all.is_finished_ok:
+                self.dump(key, lammps_all)
+            else:
+                raise
+        endtime = datetime.now()
+        print(endtime-starttime)
+        return lammps_all

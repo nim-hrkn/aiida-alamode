@@ -3,7 +3,10 @@ import os
 import collections
 import numpy as np
 import argparse
-from pymatgen import Structure
+try:
+    from pymatgen.core import Structure
+except:
+    from pymatgen import Structure
 from pymatgen.io.vasp import inputs
 from pymatgen.core.periodic_table import get_el_sp
 import seekpath
@@ -229,8 +232,6 @@ def update_qeobj(qeparse_in, structure_in):
 
 
 def run_displacement(file_primitive, prefix, scaling_matrix, disp_magnitude_angstrom):
-
-    print("debug, run_displacement")
 
     qeobj = QEParser()
     qeobj.load_initial_structure(file_primitive)

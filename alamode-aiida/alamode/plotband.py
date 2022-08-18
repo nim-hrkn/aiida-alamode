@@ -15,22 +15,13 @@ import numpy as np
 import optparse
 import matplotlib as mpl
 from matplotlib.gridspec import GridSpec
+try:
+    mpl.use("Qt5")
+except:
+    pass
 import matplotlib.pyplot as plt
 
 # parser options
-usage = "usage: %prog [options] file1.bands file2.bands ... "
-parser = optparse.OptionParser(usage=usage)
-
-parser.add_option("--nokey", action="store_false", dest="print_key", default=True,
-                  help="don't print the key in the figure")
-parser.add_option("-u", "--unit", action="store", type="string", dest="unitname", default="kayser",
-                  help="print the band dispersion in units of UNIT. Available options are kayser, meV, and THz", metavar="UNIT")
-parser.add_option("--emin", action="store", type="float", dest="emin",
-                  help="minimum value of the energy axis")
-parser.add_option("--emax", action="store", type="float", dest="emax",
-                  help="maximum value of the energy axis")
-parser.add_option("--normalize", action="store_true", dest="normalize_xaxis", default=False,
-                  help="normalize the x axis to unity.")
 
 
 # font styles
@@ -206,6 +197,10 @@ def gridspec_setup(data_merged, xtickslabels, xticksvars):
 
 
 def preprocess_data(files, unitname, normalize_xaxis, emin=None, emax=None):
+    """_summary_
+
+
+    """
 
     xtickslabels, xticksvars = get_kpath_and_kval(files[0])
 
@@ -229,34 +224,22 @@ def preprocess_data(files, unitname, normalize_xaxis, emin=None, emax=None):
     else:
         if emin is not None:
             ymin = emin
-        if options.emax is not None:
+        if emax is not None:
             ymax = emax
         if ymin > ymax:
             print("Warning: emin > emax")
 
-    naxes, xticks_grids, xticklabels_grids, xmins, xmaxs, data_merged_grids \
+    naxes, xticks_grids, xticklabels_grids, xmin, xmax, data_merged_grids \
         = gridspec_setup(data_merged, xtickslabels, xticksvars)
 
     return naxes, xticks_grids, xticklabels_grids, \
-        xmins, xmaxs, ymin, ymax, data_merged_grids
+        xmin, xmax, ymin, ymax, data_merged_grids
 
 
-def run_plot(files, nax, xticks_ax, xticklabels_ax, xmin_ax, xmax_ax, ymin, ymax, data_merged_ax,
-        unitname: str, print_key: bool, 
-        tight_layout :bool=False, filename: str=None,
-        show=True):
+def run_plot(files, nax, xticks_ax, xticklabels_ax, xmin_ax, xmax_ax, ymin, ymax,
+             data_merged_ax, unitname, print_key, show=True):
 
-    """
-    Args:
-        unitname (str): unit name.
-        print_key (str): print legend or not.
-        tight_layout (bool, optional): execute tight_layout or not. Defaults to False.
-        filename (str, optional): image filename if not None. Defaults to None.
-        show (bool, optional): execute plt.show() or not. Defaults to True.
-    """
-
-    fig = plt.figure()
-
+    # fig = plt.figure()
     width_ratios = []
     for xmin, xmax in zip(xmin_ax, xmax_ax):
         width_ratios.append(xmax - xmin)
@@ -297,15 +280,9 @@ def run_plot(files, nax, xticks_ax, xticklabels_ax, xmin_ax, xmax_ax, ymin, ymax
         if print_key and iax == 0:
             ax.legend(loc='best', prop={'size': 10})
 
-    if tight_layout:
-        gs.tight_layout(fig)
-    if filename is not None:
-        fig.savefig(filename)
     if show:
         plt.show()
-    plt.close(fig)
 
-    return filename
 
 if __name__ == '__main__':
     '''
@@ -316,10 +293,20 @@ if __name__ == '__main__':
     For details of available options, please type
     $ python plot_band.py -h
     '''
-    try:
-        mpl.use("Qt5agg")
-    except:
-        pass
+
+    usage = "usage: %prog [options] file1.bands file2.bands ... "
+    parser = optparse.OptionParser(usage=usage)
+
+    parser.add_option("--nokey", action="store_false", dest="print_key", default=True,
+                      help="don't print the key in the figure")
+    parser.add_option("-u", "--unit", action="store", type="string", dest="unitname", default="kayser",
+                      help="print the band dispersion in units of UNIT. Available options are kayser, meV, and THz", metavar="UNIT")
+    parser.add_option("--emin", action="store", type="float", dest="emin",
+                      help="minimum value of the energy axis")
+    parser.add_option("--emax", action="store", type="float", dest="emax",
+                      help="maximum value of the energy axis")
+    parser.add_option("--normalize", action="store_true", dest="normalize_xaxis", default=False,
+                      help="normalize the x axis to unity.")
 
     options, args = parser.parse_args()
     files = args[0:]
@@ -334,9 +321,7 @@ if __name__ == '__main__':
 
     nax, xticks_ax, xticklabels_ax, xmin_ax, xmax_ax, ymin, ymax, \
         data_merged_ax = preprocess_data(
-            files, options.unitname, options.normalize_xaxis,
-            options.emin, options.emax)
+            files, options.unitname, options.normalize_xaxis, options.emin, options.emax)
 
     run_plot(files, nax, xticks_ax, xticklabels_ax,
-             xmin_ax, xmax_ax, ymin, ymax, data_merged_ax,
-             options.unitname, options.print_key, show=True)
+             xmin_ax, xmax_ax, ymin, ymax, data_merged_ax, options.unitname, options.printkey)

@@ -107,7 +107,7 @@ class analyze_phonons_CalcJob(CalcJob):
 
             param = analzePhononOptions(
                 calc_value, **self.inputs.param.get_dict())
-            cmdline = print_thermal_conductivity_with_boundary(None, calc_value,
+            cmdline = print_thermal_conductivity_with_boundary("", calc_value,
                                                                result_filename,
                                                                param, return_cmd=True)
 
@@ -132,17 +132,21 @@ class analyze_phonons_CalcJob(CalcJob):
             folder.insert_path(os.path.join(cwd, result_filename),
                                dest_name=result_filename)
 
+            print(self.inputs.param.get_dict())
             param = analzePhononOptions(
                 calc_value, **self.inputs.param.get_dict())
 
+            print("param", param.options)
+
             if param.temp is None:
-                cmdline = print_temperature_dep_lifetime(None, calc_value,
+                cmdline = print_temperature_dep_lifetime("", calc_value,
                                                          result_filename,
                                                          param, return_cmd=True)
             else:
-                cmdline = print_lifetime_at_given_temperature(None, calc_value,
+                cmdline = print_lifetime_at_given_temperature("", calc_value,
                                                               result_filename, 
                                                               param, return_cmd=True)
+            print("commandline", cmdline)
 
             # code
             codeinfo = CodeInfo()
@@ -168,7 +172,7 @@ class analyze_phonons_CalcJob(CalcJob):
             param = analzePhononOptions(
                 calc_value, **self.inputs.param.get_dict())
 
-            cmdline = print_cumulative_thermal_conductivity(None, calc_value,
+            cmdline = print_cumulative_thermal_conductivity("", calc_value,
                                                         result_filename,
                                                         param, return_cmd=True)
             # code

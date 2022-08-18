@@ -385,10 +385,10 @@ class LammpsParser(object):
 
         with open(lammps_dump_file) as f:
             for line in f:
-                if "ITEM:" in line and "ITEM: ATOMS id xu yu zu fx fy fz" not in line:
-                    add_flag = None
-                    continue
-                elif "ITEM: ATOMS id xu yu zu fx fy fz" in line:
+                #if "ITEM:" in line and "ITEM: ATOMS id xu yu zu fx fy fz" not in line:
+                #    add_flag = False
+                #    continue
+                if "ITEM: ATOMS id xu yu zu fx fy fz" in line:
                     add_flag = "id.xu"
                     continue
                 elif "ITEM: ATOMS element xu yu zu fx fy fz" in line:
@@ -397,22 +397,21 @@ class LammpsParser(object):
                     continue
 
                 if add_flag is not None:
-                    if add_flag=="id.x":
+                    if add_flag == "id.xu":
                         if line.strip():
                             entries = line.strip().split()
                             data_atom = [int(entries[0]),
                                         [float(t) for t in entries[1:4]],
                                         [float(t) for t in entries[4:]]]
-
-                            ret.append(data_atom)
-                    elif add_flag=="element.xu":
+                    elif add_flag == "element.xu":
+                        if line.strip():
                             entries = line.strip().split()
                             id_ += 1
-                            data_atom = [id_,
+                            data_atom = [int(id_), 
                                         [float(t) for t in entries[1:4]],
                                         [float(t) for t in entries[4:]]]
-                            
-                            ret.append(data_atom)                        
+
+                        ret.append(data_atom)
 
         # This sort is necessary since the order atoms of LAMMPS dump files
         # may change from the input structure file.

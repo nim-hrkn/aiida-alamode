@@ -1,36 +1,33 @@
 {
     "name" : "alamode-aiida",
-    "version" : "0.7.1",
+    "version" : "0.7.2",
     "entry_points" : {
         "aiida.workflows": [
-            "alamode.dispall_pwx = alamode_aiida.alldisp_pwx_workchain: alldisp_pwx_WorkChain",
-            "alamode.all_displace_lammps = alamode_aiida.alldisp_lammps_workchain: alldisplaces_lammps_WorkChain",
-            "alamode.displace_putfiles = alamode_aiida.tools: DisplacePutFiles",
-            "alamode.extract = alamode_aiida.tools: ExtractWorkChain",
-            "alamode.phband_img = alamode_aiida.tools: PhbandWorkChain",
-            "alamode.phdos_img = alamode_aiida.tools: PhdosWorkChain",
-            "alamode.freeenergy_img = alamode_aiida.tools: FreeenergyImgWorkChain"
+            "alamode.force_simulator_lammps = alamode_aiida.workflows.alldisp_lammps_workchain: force_simulator_lammps_WorkChain",
+            "alamode.alm_ALM_suggest = alamode_aiida.workflows.alm_ALM: alm_ALM_suggest",
+            "alamode.alm_ALM_opt = alamode_aiida.workflows.alm_ALM: alm_ALM_opt",
+            "alamode.phband_img = alamode_aiida.workflows.img_workchain: PhbandWorkChain",
+            "alamode.phdos_img = alamode_aiida.workflows.img_workchain: PhdosWorkChain",
+            "alamode.freeenergy_img = alamode_aiida.workflows.img_workchain: FreeenergyImgWorkChain"
         ],
 	"aiida.calculations": [
-	    "alamode.pwx   = alamode_aiida.pwx_calcjob: pwx_CalcJob" ,
-	    "alamode.lammps   = alamode_aiida.lammps_calcjob: lammps_CalcJob" ,
-            "alamode.alm_suggest   = alamode_aiida.alm_calcjob: almSuggestCalcJob",
-            "alamode.alm_opt   = alamode_aiida.alm_calcjob: almOptCalcJob",
-            "alamode.anphon = alamode_aiida.alm_calcjob: anphon_CalcJob",
-            "alamode.displace_pf   = alamode_aiida.tools: displace_pf_Calcjob",
-            "alamode.displace_ALM_pf   = alamode_aiida.tools: displace_ALM_pf_Calcjob",
-            "alamode.displace_random   = alamode_aiida.tools: displace_random_Calcjob",
-            "alamode.extract   = alamode_aiida.extract_calcjob: extractCalcJob",
-            "alamode.analyze_phonons = alamode_aiida.analyze_calcjob: analyze_phonons_CalcJob"
+	    "alamode.lammps   = alamode_aiida.calculations.lammps_calcjob: lammps_CalcJob" ,
+            "alamode.alm_suggest   = alamode_aiida.calculations.alm_calcjob: almSuggestCalcJob",
+            "alamode.alm_opt   = alamode_aiida.calculations.alm_calcjob: almOptCalcJob",
+            "alamode.anphon = alamode_aiida.calculations.anphon_calcjob: anphon_CalcJob",
+            "alamode.displace_pf   = alamode_aiida.calculations.displace_calcjob: displace_pf_CalcJob",
+            "alamode.displace_ALM_pf   = alamode_aiida.calculations.displace_calcjob: displace_ALM_pf_CalcJob",
+            "alamode.displace_random   = alamode_aiida.calculations.displace_calcjob: displace_random_CalcJob",
+            "alamode.extract   = alamode_aiida.calculations.extract_calcjob: extractCalcJob",
+            "alamode.analyze_phonons = alamode_aiida.calculations.analyze_calcjob: analyze_phonons_CalcJob"
 	],
 	"aiida.parsers":  [
-	    "alamode.pwx  = alamode_aiida.pwx_calcjob: pwx_ParseJob" ,
-	    "alamode.lammps  = alamode_aiida.lammps_calcjob: lammps_ParseJob" ,
-            "alamode.alm   = alamode_aiida.alm_calcjob: alm_ParseJob",
-            "alamode.anphon = alamode_aiida.alm_calcjob: anphon_ParseJob",
-            "alamode.displace   = alamode_aiida.tools: displace_ParseJob",
-            "alamode.extract   = alamode_aiida.extract_calcjob: extract_ParseJob",
-            "alamode.analyze_phonons = alamode_aiida.analyze_calcjob: analyze_phonons_ParseJob"
+	    "alamode.lammps  = alamode_aiida.calculations.lammps_calcjob: lammps_ParseJob" ,
+            "alamode.alm   = alamode_aiida.calculations.alm_calcjob: alm_ParseJob",
+            "alamode.anphon = alamode_aiida.calculations.anphon_calcjob: anphon_ParseJob",
+            "alamode.displace   = alamode_aiida.calculations.displace_calcjob: displace_ParseJob",
+            "alamode.extract   = alamode_aiida.calculations.extract_calcjob: extract_ParseJob",
+            "alamode.analyze_phonons = alamode_aiida.calculations.analyze_calcjob: analyze_phonons_ParseJob"
         ]
     }
 }
