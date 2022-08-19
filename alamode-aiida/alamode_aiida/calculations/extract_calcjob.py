@@ -11,13 +11,16 @@ from aiida.common.datastructures import CalcInfo, CodeInfo
 from itertools import cycle
 import os
 
+from aiida.common.exceptions import InputValidationError
 from aiida.engine import calcfunction, workfunction, submit, run
 from aiida.engine import run_get_node
 from aiida.orm import load_code, load_node
 from ase import io
 from ..io.lammps_support import write_lammps_data
 from ..io.ase_support import load_atoms
-from ..io.aiida_support import save_output_folder_files
+from ..io.aiida_support import save_output_folder_files, folder_prepare_object
+from ..common.base import alamodeBaseCalcjob
+
 
 # load types
 StructureData = DataFactory('structure')
@@ -27,7 +30,7 @@ ArrayData = DataFactory('array')
 TrajectoryData = DataFactory('array.trajectory')
 
 
-class extractCalcJob(CalcJob):
+class extractCalcJob(alamodeBaseCalcjob):
     """ extract.py
 
     Specify offset = SinglefileData if there is. offset = Str means no file.
@@ -67,38 +70,49 @@ class extractCalcJob(CalcJob):
         displacement_and_forces = list(
             self.inputs.displacement_and_forces.get_dict().items())
         if len(displacement_and_forces) != 1:
-            raise ValueError('displacement_and_forces must be len 1.')
+            raise InputValidationError('displacement_and_forces must be len 1.')
         format_, displacement_and_forces_list = displacement_and_forces[0]
         filename_list = []
+        
         for _i, _content in enumerate(displacement_and_forces_list):
             filename = f"{_i}.in"
             filename_list.append(filename)
             with folder.open(filename, "w", encoding='utf8') as handle:
                 handle.write(_content)
+        # Should I write in the cwd also to examine them before running?
 
         atoms = self.inputs.structure_org.get_ase()
-
         structure_org_filename = "structure_org.in"
-        if format_ == "LAMMPS":
-            style = 'atomic'
-            with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                write_lammps_data(
-                    handle, atoms, atom_style=style, force_skew=True)
-        elif format_ == "QE":
-            with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                io.write(handle, style="espresso-in")
-        elif format_ == "VASP":
-            with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                io.write(handle, style="vasp")
+
+        if False:
+            if format_ == "LAMMPS":
+                style = 'atomic'
+                with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
+                    write_lammps_data(
+                        handle, atoms, atom_style=style, force_skew=True)
+            elif format_ == "QE":
+                with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
+                    io.write(handle, style="espresso-in")
+            elif format_ == "VASP":
+                with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
+                    io.write(handle, style="vasp")
+            else:
+                raise InputValidationError(f'unknown format. format={self.format.value}')
         else:
-            raise ValueError(f'unknown format. format={self.format.value}')
+            try:
+                folder_prepare_object(folder, self.inputs.structure_org, actions=[StructureData],
+                filename = "structure_org.in", format=format_)
+            except ValueError as err:
+                raise InputValidationError(str(err))
+            except TypeError as err:
+                raise InputValidationError(str(err))
 
         offset_file = self.inputs.offset
         if isinstance(offset_file, SinglefileData):
             _content = offset_file.get_object_content()
             filename = offset_file.list_object_names()[0]
             with folder.open(filename, "w", encoding='utf8') as handle:
-                f.write(_content)
+                handle.write(_content)
 
         # code
         codeinfo = CodeInfo()

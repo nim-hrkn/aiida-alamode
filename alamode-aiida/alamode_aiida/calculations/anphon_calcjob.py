@@ -23,9 +23,12 @@ from fnmatch import fnmatch
 
 from sympy import list2numpy
 
+from aiida.common.exceptions import InputValidationError
+
 from ..io.alm_input import make_alm_in, atoms_to_alm_in, make_alm_kpoint
 from ..io.displacement import lines_to_displacementpattern
-from ..io.aiida_support import folder_prepare
+from ..io.aiida_support import folder_prepare_object, save_output_folder_files
+from ..common.base import alamodeBaseCalcjob
 
 AU2ANG = 0.529177
 
@@ -40,7 +43,7 @@ ArrayData = DataFactory('array')
 
 
 
-class anphon_CalcJob(CalcJob):
+class anphon_CalcJob(alamodeBaseCalcjob):
     _WITHMPI = False
     _NORDER = 1  # dummy
     _PREFIX_DEFAULT = "alamode"
@@ -110,7 +113,14 @@ class anphon_CalcJob(CalcJob):
                     raise ValueError("unknown instance in self.inputs.fcsxml. type=", 
                                     type(self.inputs.fcsxml))
             else:
-                fcsxml_filename = folder_prepare(folder, self.inputs.fcsxml, self._FCS_FILENAME)
+                try:
+                    fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml, 
+                                        filename=self._FCS_FILENAME, actions=(SinglefileData, List))
+                except ValueError as err:
+                    raise InputValidationError(str(err))
+                except TypeError as err:
+                    raise InputValidationError(str(err))
+
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -127,9 +137,11 @@ class anphon_CalcJob(CalcJob):
                     else:
                         kpoint_param = None
                 qmesh_value = self.inputs.qmesh.get_list()
+                if len(qmesh_value) != 3:
+                    raise InputValidationError(f"size of qmesh must be 3.")
                 kpoint_param = ["2", " ".join(list(map(str, qmesh_value)))]
             else:
-                raise ValueError("unknown type={type}")
+                raise InputValidationError(f"unknown phonons_mode={phonons_mode}")
 
             other_param = self.inputs.param.get_dict()
             if "general" in other_param:
@@ -188,7 +200,14 @@ class anphon_CalcJob(CalcJob):
                     raise ValueError("unknown instance in self.inputs.fcsxml. type=", 
                                     type(self.inputs.fcsxml))
             else:
-                target_filename = folder_prepare(folder, fcsxml, f'{alm_prefix_value}_RTA.xml')
+                try:
+                    target_filename = folder_prepare_object(folder, fcsxml, actions= (SinglefileData, List) ,
+                    filename=f'{alm_prefix_value}_RTA.xml')
+                except ValueError as err:
+                    raise InputValidationError(str(err))
+                except TypeError as err:
+                    raise InputValidationError(str(err))
+
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -202,6 +221,9 @@ class anphon_CalcJob(CalcJob):
                     kpoint_param = make_alm_kpoint(structure, 2)
 
             qmesh_value = self.inputs.qmesh.get_list()
+            if len(qmesh_value) != 3:
+                raise InputValidationError('size of qmesh must be 3.')
+
             kpoint_param = ["2", " ".join(list(map(str, qmesh_value)))]
 
             other_param = self.inputs.param.get_dict()
@@ -258,11 +280,25 @@ class anphon_CalcJob(CalcJob):
 
 
 def _parse_anphon(handle):
+    """parse anphon.
+
+    Args:
+        handle (_type_): file handler.
+
+    Raises:
+        ValueError: if no keys are found.
+
+    Returns:
+        dict: results.
+    """
     data = handle.read().splitlines()
     data_iter = iter(data)
     result = {}
     while True:
-        line = next(data_iter)
+        try:
+            line = next(data_iter)
+        except StopIteration:
+            break
         if line.startswith(" The following files are created:"):
             while True:
                 line = next(data_iter).strip()
@@ -284,12 +320,13 @@ def _parse_anphon(handle):
                 return result
             else:
                 raise ValueError("failed to get result.")
-
+    raise ValueError("failed to get result.")
 
 def _parse_anphon_RTA(handle):
     data = handle.read().splitlines()
     data_iter = iter(data)
     result = {}
+    job_finished = False
     while True:
         line = next(data_iter)
         if "PREFIX" in line:
@@ -317,7 +354,11 @@ def _parse_anphon_RTA(handle):
             kappa_spec = int(s[2])
             result["kappa_spec"] = kappa_spec
         elif "Job finished" in line:
+            job_finished = True
             break
+
+    if not job_finished:
+        raise ValueError("failed to get 'Job finished'.")
 
     if len(result.keys()) > 0:
         result["result_filename"] = f"{prefix}.result"
@@ -332,6 +373,7 @@ class anphon_ParseJob(Parser):
         mode = self.node.inputs.mode.value
         norder = self.node.inputs.norder.value
         prefix = self.node.inputs.prefix.value
+        alm_prefix_node = self.node.inputs.prefix
 
         cwd = self.node.inputs.cwd.value
         if len(cwd) > 0:
@@ -345,7 +387,12 @@ class anphon_ParseJob(Parser):
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
-                    result = _parse_anphon_RTA(handle=handle)
+                    try:
+                        result = _parse_anphon_RTA(handle=handle)
+                    except ValueError as err:
+                        _, exit_code = save_output_folder_files(output_folder, 
+                                     cwd, alm_prefix_node)
+                        return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
@@ -356,8 +403,13 @@ class anphon_ParseJob(Parser):
                 kappa_spec_str = ""
             elif kappa_spec_value == 1:
                 kappa_spec_str = "_spec"
+            else:
+                # This can't happen because it is checked in calcjob.
+                return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
 
             filename = self.node.get_option('input_filename')
+            if filename not in output_folder.list_object_names():
+                raise self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
             _content = output_folder.get_object_content(filename)
             filename = f"{prefix}_anphon_{mode}{kappa_spec_str}.in"
             target_path = os.path.join(cwd, filename)
@@ -365,6 +417,8 @@ class anphon_ParseJob(Parser):
                 f.write(_content)
 
             filename = self.node.get_option('output_filename')
+            if filename not in output_folder.list_object_names():
+                raise self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
             _content = output_folder.get_object_content(filename)
             filename = f"{prefix}_anphon_{mode}{kappa_spec_str}.out"
             target_path = os.path.join(cwd, filename)
@@ -376,6 +430,9 @@ class anphon_ParseJob(Parser):
             elif kappa_spec_value == 1:
                 label_list = ["result_filename",
                               "kl_filename", "kl_spec_filename"]
+            else:
+                # This can't happen because it is checked in calcjob.
+                return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
 
             for label in label_list:
                 filename = result[label]
@@ -396,7 +453,12 @@ class anphon_ParseJob(Parser):
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
-                    result = _parse_anphon(handle=handle)
+                    try:
+                        result = _parse_anphon(handle=handle)
+                    except ValueError as err:
+                        _, exit_code = save_output_folder_files(output_folder, 
+                                     cwd, alm_prefix_node)
+                        return self.exit_codes.ERROR_INVALID_OUTPUT
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
@@ -406,6 +468,10 @@ class anphon_ParseJob(Parser):
 
             if len(cwd) > 0:
                 filename = self.node.get_option('input_filename')
+                if filename not in output_folder.list_object_names():
+                    _, exit_code = save_output_folder_files(output_folder, 
+                                     cwd, alm_prefix_node)
+                    raise self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
                 _content = output_folder.get_object_content(filename)
                 filename = f"{prefix}_anphon_{mode}_{phonons_mode}.in"
                 target_path = os.path.join(cwd, filename)
@@ -413,6 +479,10 @@ class anphon_ParseJob(Parser):
                     f.write(_content)
 
                 filename = self.node.get_option('output_filename')
+                if filename not in output_folder.list_object_names():
+                    _, exit_code = save_output_folder_files(output_folder, 
+                                     cwd, alm_prefix_node)
+                    raise self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
                 _content = output_folder.get_object_content(filename)
                 filename = f"{prefix}_anphon_{mode}_{phonons_mode}.out"
                 target_path = os.path.join(cwd, filename)
@@ -428,3 +498,4 @@ class anphon_ParseJob(Parser):
                              SinglefileData(target_path))
 
             self.out('results', Dict(dict=result))
+            

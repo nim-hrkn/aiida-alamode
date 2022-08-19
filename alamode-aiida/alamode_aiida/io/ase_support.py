@@ -62,10 +62,7 @@ def load_atoms_bare(filename: str, format: str, supply_Z_from_mass=True) -> Atom
     Returns:
         ase.Atoms: cystal data.
     """
-    if format == "cif":
-        cif = CifData(file=filename)
-        atoms = cif.ase
-    elif format == "lammps-data":
+    if format == "lammps-data":
         #atoms = read_lammps_data(filename, style=style)
         style = 'atomic'
         supply_Z_from_mass = True

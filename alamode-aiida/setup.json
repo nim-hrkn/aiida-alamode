@@ -1,6 +1,6 @@
 {
     "name" : "alamode-aiida",
-    "version" : "0.7.2",
+    "version" : "0.7.3",
     "entry_points" : {
         "aiida.workflows": [
             "alamode.force_simulator_lammps = alamode_aiida.workflows.alldisp_lammps_workchain: force_simulator_lammps_WorkChain",
@@ -16,7 +16,6 @@
             "alamode.alm_opt   = alamode_aiida.calculations.alm_calcjob: almOptCalcJob",
             "alamode.anphon = alamode_aiida.calculations.anphon_calcjob: anphon_CalcJob",
             "alamode.displace_pf   = alamode_aiida.calculations.displace_calcjob: displace_pf_CalcJob",
-            "alamode.displace_ALM_pf   = alamode_aiida.calculations.displace_calcjob: displace_ALM_pf_CalcJob",
             "alamode.displace_random   = alamode_aiida.calculations.displace_calcjob: displace_random_CalcJob",
             "alamode.extract   = alamode_aiida.calculations.extract_calcjob: extractCalcJob",
             "alamode.analyze_phonons = alamode_aiida.calculations.analyze_calcjob: analyze_phonons_CalcJob"
