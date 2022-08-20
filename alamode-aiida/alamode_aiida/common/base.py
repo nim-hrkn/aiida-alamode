@@ -9,10 +9,10 @@ class alamodeBaseCalcjob(CalcJob):
         super(alamodeBaseCalcjob, cls).define(spec)
 
         spec.exit_code(200, "ERROR_NO_RETRIEVED_FOLDER",
-                       message="The retrieved folder data node could not be accessed."                       )
+                       message="The retrieved folder data node could not be accessed.")
 
         # stdout file, or some file
-        # versus 
+        # versus
         # missing, read, parse, imcomplete
         spec.exit_code(302, 'ERROR_OUTPUT_STDOUT_MISSING',
                        message='The retrieved folder did not contain the required stdout output file.')
@@ -36,6 +36,6 @@ class alamodeBaseCalcjob(CalcJob):
         spec.exit_code(330, 'ERROR_OUTPUT_FCS_MISSING',
                        message='The retrieved folder did not contain the required fcs output file.')
         # general parse
-      
+
         spec.exit_code(390, 'ERROR_UNEXPECTED_PARSER_EXCEPTION',
                        message='The parser raised an unexpected exception.')

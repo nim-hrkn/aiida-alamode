@@ -1,14 +1,14 @@
 # Copyright 2022 Hiori Kino
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the “License”);
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an “AS IS” BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# 
+#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations
@@ -26,7 +26,7 @@ List = DataFactory('list')
 ArrayData = DataFactory('array')
 
 
-def load_anphon_kl(data: str|SinglefileData):
+def load_anphon_kl(data: str | SinglefileData):
     if isinstance(data, str):
         data = data.splitlines()
     elif isinstance(data, SinglefileData):
@@ -38,28 +38,28 @@ def load_anphon_kl(data: str|SinglefileData):
     for _x in v:
         _x = _x.strip()
         v2.append(_x)
-    header = v2 
+    header = v2
     varname = header[1]
     del header[1]
-    unit  = header[-1]
+    unit = header[-1]
     del header[-1]
-    
+
     varlist = []
     for _x in header[1:]:
         varlist.append(f"{varname}_{_x} {unit}")
     header = [header[0]]
     header.extend(varlist)
-        
+
     lines = []
     for line in data[1:]:
         line = line.strip()
         s = re.split(" +", line)
-        v = list(map(float,s))
+        v = list(map(float, s))
         lines.append(v)
     return pd.DataFrame(lines, columns=header)
 
 
-def load_anphon_kl_spec(data: str| SinglefileData):
+def load_anphon_kl_spec(data: str | SinglefileData):
     if isinstance(data, str):
         data = data.splitlines()
     elif isinstance(data, SinglefileData):
@@ -81,9 +81,9 @@ def load_anphon_kl_spec(data: str| SinglefileData):
     values = []
     for _x in data[1:]:
         _x = _x.strip()
-        if len(_x)==0:
+        if len(_x) == 0:
             continue
         _xx = re.split(" +", _x.strip())
-        values.append(list(map(float,_xx)))
+        values.append(list(map(float, _xx)))
 
-    return  pd.DataFrame(values, columns=splitted_header)
+    return pd.DataFrame(values, columns=splitted_header)

@@ -1,23 +1,17 @@
 
-from aiida.orm import Code
-from aiida.orm import Str, Int, Dict, List, Float
-from aiida.engine import calcfunction, WorkChain, ToContext, append_
-from aiida.plugins import DataFactory, WorkflowFactory
+from aiida.orm import Str, Dict, List
+from aiida.engine import ToContext
+from aiida.plugins import DataFactory
 from aiida.common.folders import Folder
 from aiida.parsers.parser import Parser
-from aiida.engine import CalcJob, calcfunction, WorkChain
 from aiida.common.datastructures import CalcInfo, CodeInfo
 
-from itertools import cycle
 import os
 
 from aiida.common.exceptions import InputValidationError
-from aiida.engine import calcfunction, workfunction, submit, run
-from aiida.engine import run_get_node
-from aiida.orm import load_code, load_node
+
 from ase import io
 from ..io.lammps_support import write_lammps_data
-from ..io.ase_support import load_atoms
 from ..io.aiida_support import save_output_folder_files, folder_prepare_object
 from ..common.base import alamodeBaseCalcjob
 
@@ -73,7 +67,7 @@ class extractCalcJob(alamodeBaseCalcjob):
             raise InputValidationError('displacement_and_forces must be len 1.')
         format_, displacement_and_forces_list = displacement_and_forces[0]
         filename_list = []
-        
+
         for _i, _content in enumerate(displacement_and_forces_list):
             filename = f"{_i}.in"
             filename_list.append(filename)
@@ -101,7 +95,7 @@ class extractCalcJob(alamodeBaseCalcjob):
         else:
             try:
                 folder_prepare_object(folder, self.inputs.structure_org, actions=[StructureData],
-                filename = "structure_org.in", format=format_)
+                                      filename="structure_org.in", format=format_)
             except ValueError as err:
                 raise InputValidationError(str(err))
             except TypeError as err:
@@ -157,7 +151,7 @@ class extract_ParseJob(Parser):
 
         try:
             output_folder = self.retrieved
-        except:
+        except Exception:
             return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
         if False:

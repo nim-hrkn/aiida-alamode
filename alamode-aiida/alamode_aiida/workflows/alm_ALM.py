@@ -10,7 +10,6 @@ from aiida.orm import Str,  Int
 from aiida.plugins import DataFactory
 
 
-from aiida.engine import CalcJob, WorkChain
 from ..io.displacement import displacemenpattern_to_lines
 
 from alm import ALM
@@ -40,6 +39,7 @@ def _alm_ALM_sugget(superstructure: StructureData, norder: Int,
 
     return List(list=displacement_patterns)
 
+
 if False:
     @calcfunction
     def _alm_ALM_sugget_put_pattern_files(displacement_patterns, cwd, filename_list):
@@ -50,6 +50,7 @@ if False:
                 json.dump(displacement_pattern, f)
             folderdata.put_object_from_file(filepath, filename)
         return folderdata
+
 
 class alm_ALM_suggest(WorkChain):
     """ALM.suggest()
@@ -84,7 +85,7 @@ class alm_ALM_suggest(WorkChain):
                 content = displacemenpattern_to_lines(pattern)
                 with open(filepath, "w") as f:
                     f.write("\n".join(content))
-                
+
         self.out("pattern", patterns)
         results = {}  # dummy
         results = Dict(dict=results)
@@ -94,14 +95,14 @@ class alm_ALM_suggest(WorkChain):
 
 def _dfset_to_disp_and_force(lines: list):
     """transform DFSET to displacement and forces to pass ALM.optimize.
-    
+
     The size of arrays are
         displacement(Nstructure, Nsiteperstructure, 3)
         force(Nstructure, Nsiteperstructure, 3)
-    
+
     Args:
         lines (list): lines of DFSET splitted by "\n".
-        
+
     Returns:
         tuple containig
         displacement (np.array): 3-dimensional array of displacement.
@@ -113,18 +114,18 @@ def _dfset_to_disp_and_force(lines: list):
     structure_force = []
     for line in lines[1:]:
         if line.startswith("#"):
-            if len(structure_disp)>0:
+            if len(structure_disp) > 0:
                 disp_list.append(structure_disp)
                 force_list.append(structure_force)
             structure_disp = []
             structure_force = []
             continue
         s = line.split()
-        disp = list(map(float,s[:3]))
-        force = list(map(float,s[3:]))
+        disp = list(map(float, s[:3]))
+        force = list(map(float, s[3:]))
         structure_disp.append(disp)
         structure_force.append(force)
-    if len(structure_disp)>0:
+    if len(structure_disp) > 0:
         disp_list.append(structure_disp)
         force_list.append(structure_force)
 
@@ -140,6 +141,7 @@ class alm_ALM_opt(WorkChain):
     _PREFIX = "disp"
     _SOLVER = "dense"
     _OPTIMIZER_CONTROL = {}
+
     @ classmethod
     def define(cls, spec):
         super().define(spec)
@@ -149,11 +151,11 @@ class alm_ALM_opt(WorkChain):
         spec.input("cutoff_radii", valid_type=List, help='cutoff radii')
         spec.input("nbody", valid_type=List, help='nbody')
         spec.input("dfset", valid_type=List, help='DFSET')
-        spec.input("solver", valid_type=Str, 
-                   default=lambda: Str(cls._SOLVER), 
+        spec.input("solver", valid_type=Str,
+                   default=lambda: Str(cls._SOLVER),
                    help='optimization solver')
-        spec.input("optimizer_control", valid_type=Dict, 
-                   default=lambda: Dict(dict=cls._OPTIMIZER_CONTROL), 
+        spec.input("optimizer_control", valid_type=Dict,
+                   default=lambda: Dict(dict=cls._OPTIMIZER_CONTROL),
                    help='optimizer_control of ALM')
         spec.outline(cls.opt)
 
@@ -166,7 +168,7 @@ class alm_ALM_opt(WorkChain):
         atoms = self.inputs.structure.get_ase()
         lavec = atoms.cell
         xcoord = atoms.get_scaled_positions()
-        kd = atoms.get_atomic_numbers()   
+        kd = atoms.get_atomic_numbers()
         prefix = self._PREFIX
         disp, force = _dfset_to_disp_and_force(self.inputs.dfset.get_list())
         with ALM(lavec, xcoord, kd) as alm:
@@ -174,13 +176,13 @@ class alm_ALM_opt(WorkChain):
             alm.displacements = disp
             alm.forces = force
             optimizer_control = self.inputs.optimizer_control.get_dict()
-            if len(optimizer_control.keys())>0:
+            if len(optimizer_control.keys()) > 0:
                 alm.optimizer_control = optimizer_control
             solver = self.inputs.solver.value
-            info = alm.optimize(solver=solver) 
+            _ = alm.optimize(solver=solver)
             filepath = os.path.join(cwd, f'{prefix}.xml')
             alm.save_fc(filepath, format='alamode')
-                
+
         file = SinglefileData(filepath)
         file.store()
         self.out("input_ANPHON", file)

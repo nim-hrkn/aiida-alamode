@@ -4,9 +4,9 @@ from ase.data import atomic_masses
 from ase import Atoms
 import numpy as np
 from ase import io
-from aiida.orm import Str, Dict, Float, Int
-from aiida.plugins import DataFactory, WorkflowFactory
-from aiida.engine import calcfunction, workfunction, submit, run
+from aiida.orm import Str
+from aiida.plugins import DataFactory
+from aiida.engine import calcfunction
 
 
 # load types
@@ -23,7 +23,6 @@ def ase_atoms_supply_Z_from_mass(atoms):
             if np.abs(m-M) < eps:
                 return i
         raise ValueError('failed to find M')
-        return None
     Z = []
     for i, m in zip(atoms.get_atomic_numbers(), atoms.get_masses()):
         z = _find_Z_sim_mass(m)
@@ -63,7 +62,6 @@ def load_atoms_bare(filename: str, format: str, supply_Z_from_mass=True) -> Atom
         ase.Atoms: cystal data.
     """
     if format == "lammps-data":
-        #atoms = read_lammps_data(filename, style=style)
         style = 'atomic'
         supply_Z_from_mass = True
         atoms = io.read(filename, format=format, style=style)

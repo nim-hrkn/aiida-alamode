@@ -1,8 +1,9 @@
 
 
 class zerofillStr:
-    """returns string 023 if i=23 and if the total number is 3 digits.     
+    """returns string 023 if i=23 and if the total number is 3 digits.
     """
+
     def __init__(self, npattern):
         self._set_number_of_zerofill(npattern)
 

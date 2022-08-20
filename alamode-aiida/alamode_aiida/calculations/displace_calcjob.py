@@ -14,14 +14,13 @@
 from ase import Atoms
 from fnmatch import fnmatch
 
-from aiida.orm import Str, Float, Dict, Int, Bool
+from aiida.orm import Str, Float, Dict, Int
 from aiida.common.datastructures import CalcInfo, CodeInfo
 from aiida.common.folders import Folder
 from aiida.parsers.parser import Parser
-from aiida.engine import CalcJob, calcfunction, WorkChain
+from aiida.engine import CalcJob
 from aiida.plugins import DataFactory
 from aiida.common.exceptions import InputValidationError
-from pyparsing import common
 
 # from alamode.extract import check_options, run_parse
 
@@ -33,9 +32,7 @@ from ..io.aiida_support import save_output_folder_files, folder_prepare_object
 
 import os
 import numpy as np
-import sys
-import pandas as pd
-import matplotlib.pyplot as plt
+
 from ase import io
 
 
@@ -81,7 +78,7 @@ def _get_str_outfiles(format_: str, prefix: str = "disp", counter: str = "*"):
 def make_pattern_files(displacement_patterns: list, cwd: str, filename_template: str):
     filepath_list = []
     for _i, displacement_pattern in enumerate(displacement_patterns):
-        filename = filename_template.replace('{counter}',str(_i))
+        filename = filename_template.replace('{counter}', str(_i))
         basis = []
         for pats in displacement_pattern:
             for pat in pats:
@@ -128,6 +125,7 @@ def _place_structure_org_file(atoms: Atoms,
 
     return structure_org_filepath
 
+
 if False:
     class displace_ALM_pf_CalcJob(CalcJob):
         """ displace -pf
@@ -157,15 +155,19 @@ if False:
             spec.input("structure_org", valid_type=(
                 StructureData, SinglefileData, Str), help='equilibrium structure')
 
-            spec.input("mag", valid_type=Float, help='magnitude of displacement')
-            spec.input("displacement_patterns", valid_type=List, help='displacement pattern')
-            #spec.input("pattern_filenames", valid_type=List)
-            spec.input("cwd", valid_type=Str, help='directory where results are saved.')
-            spec.input("norder", valid_type=Int, default=lambda: Int(cls._NORDER), 
-            help='1 (harmonic) or 2 (cubic)')
-            spec.input("prefix", valid_type=Str, default=lambda: Str(cls._PREFIX), help='string added to filename.')
-            spec.input("mode", valid_type=Str, default=lambda: Str(cls._MODE), help='\'pf\' (fixed)')
-
+            spec.input("mag", valid_type=Float,
+                       help='magnitude of displacement')
+            spec.input("displacement_patterns", valid_type=List,
+                       help='displacement pattern')
+            # spec.input("pattern_filenames", valid_type=List)
+            spec.input("cwd", valid_type=Str,
+                       help='directory where results are saved.')
+            spec.input("norder", valid_type=Int, default=lambda: Int(cls._NORDER),
+                       help='1 (harmonic) or 2 (cubic)')
+            spec.input("prefix", valid_type=Str, default=lambda: Str(
+                cls._PREFIX), help='string added to filename.')
+            spec.input("mode", valid_type=Str, default=lambda: Str(
+                cls._MODE), help='\'pf\' (fixed)')
 
             spec.inputs['metadata']['options']['parser_name'].default = 'alamode.displace'
             spec.inputs['metadata']['options']['input_filename'].default = 'displace_pf.in'
@@ -174,8 +176,10 @@ if False:
                 'num_machines': 1, 'num_mpiprocs_per_machine': 1}
 
             spec.output('results', valid_type=Dict)
-            spec.output('dispfile_folder', valid_type=FolderData, help='folder containing displacements')
-            spec.output('displaced_structures', valid_type=TrajectoryData, help='a set of displaced structures')
+            spec.output('dispfile_folder', valid_type=FolderData,
+                        help='folder containing displacements')
+            spec.output('displaced_structures', valid_type=TrajectoryData,
+                        help='a set of displaced structures')
 
         def prepare_for_submission(self, folder: Folder) -> CalcInfo:
             cwd = self.inputs.cwd.value
@@ -188,17 +192,17 @@ if False:
             if len(structure_org_filename) == 0:
                 raise ValueError("len(structure_org_filename)==0")
             structure_org_filepath = _place_structure_org_file(atoms,
-                                                            structure_org_filename,
-                                                            cwd,
-                                                            format)
+                                                               structure_org_filename,
+                                                               cwd,
+                                                               format)
 
             folder.insert_path(structure_org_filepath,
-                            dest_name=structure_org_filename)
+                               dest_name=structure_org_filename)
 
             # pattern_files
             filepath_list = make_pattern_files(self.inputs.displacement_patterns.get_list(),
-                                            self.inputs.cwd.value,
-                                            self._PATTERN_FILENAME)
+                                               self.inputs.cwd.value,
+                                               self._PATTERN_FILENAME)
             for target_path in filepath_list:
                 _, filename = os.path.split(target_path)
                 folder.insert_path(target_path, dest_name=filename)
@@ -206,8 +210,8 @@ if False:
             codeinfo = CodeInfo()
             codeinfo.code_uuid = self.inputs.code.uuid
             codeinfo.cmdline_params = [f"--{self.inputs.format.value}={structure_org_filename}",
-                                    f"--prefix={self.inputs.prefix.value}",
-                                    f"--mag={str(self.inputs.mag.value)}", "-pf"]
+                                       f"--prefix={self.inputs.prefix.value}",
+                                       f"--mag={str(self.inputs.mag.value)}", "-pf"]
 
             for filename in self.inputs.filepath_list:
                 codeinfo.cmdline_params.append(filename)
@@ -222,7 +226,7 @@ if False:
             calcinfo = CalcInfo()
             calcinfo.codes_info = [codeinfo]
             calcinfo.retrieve_list = [self.options.input_filename, self.options.output_filename,
-                                    disp_input_filename]
+                                      disp_input_filename]
 
             return calcinfo
 
@@ -252,15 +256,19 @@ class displace_pf_CalcJob(alamodeBaseCalcjob):
         """
         super().define(spec)
         spec.input("format", valid_type=Str, help='structure file format')
-        spec.input("structure_org", valid_type=StructureData, help='equilibrium structure')
+        spec.input("structure_org", valid_type=StructureData,
+                   help='equilibrium structure')
 
         spec.input("mag", valid_type=Float, help='magnitude of displacement')
         spec.input("pattern", valid_type=List, help='displacement pattern')
-        spec.input("cwd", valid_type=Str, default=lambda: Str(cls._CWD), help='directory where results are saved.')
-        spec.input("norder", valid_type=Int, default=lambda: Int(cls._NORDER),help='1 (harmonic) or 2 (cubic)')
-        spec.input("prefix", valid_type=Str, default=lambda: Str(cls._PREFIX), help='string added to the filename')
-        spec.input("mode", valid_type=Str, default=lambda: Str(cls._MODE), help='displace must (must be \'pf\'')
-
+        spec.input("cwd", valid_type=Str, default=lambda: Str(
+            cls._CWD), help='directory where results are saved.')
+        spec.input("norder", valid_type=Int, default=lambda: Int(
+            cls._NORDER), help='1 (harmonic) or 2 (cubic)')
+        spec.input("prefix", valid_type=Str, default=lambda: Str(
+            cls._PREFIX), help='string added to the filename')
+        spec.input("mode", valid_type=Str, default=lambda: Str(
+            cls._MODE), help='displace must (must be \'pf\'')
 
         spec.inputs['metadata']['options']['parser_name'].default = 'alamode.displace'
         spec.inputs['metadata']['options']['input_filename'].default = 'displace_pf.in'
@@ -272,7 +280,6 @@ class displace_pf_CalcJob(alamodeBaseCalcjob):
         spec.output('displaced_structures', valid_type=TrajectoryData)
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
-        cwd = self.inputs.cwd.value
         prefix = self.inputs.prefix.value
         # make structure_org_filenmame in the cwd directory
         # and add it to folder.insert_path.
@@ -292,7 +299,8 @@ class displace_pf_CalcJob(alamodeBaseCalcjob):
             with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
                 io.write(handle, style="vasp")
         else:
-            raise InputValidationError(f'unsupported format open structure_org. format={self.format.value}')
+            raise InputValidationError(
+                f'unsupported format open structure_org. format={self.format.value}')
 
         pattern_file_ext_list = ["harmonic", "cubic"]
         processed_list = []
@@ -302,7 +310,7 @@ class displace_pf_CalcJob(alamodeBaseCalcjob):
             with folder.open(pattern_filename, 'w', encoding='utf8') as handle:
                 handle.write("\n".join(lines))
             processed_list.append(pattern_filename)
-        if len(pattern_filename)==0:
+        if len(pattern_filename) == 0:
             raise InputValidationError('no patterns in inputs.pattern')
 
         codeinfo = CodeInfo()
@@ -354,12 +362,16 @@ class displace_random_CalcJob(alamodeBaseCalcjob):
             StructureData, SinglefileData, Str), help='equilibrium structure')
 
         spec.input("mag", valid_type=Float, help='magnitude of displacement')
-        spec.input("num_disp", valid_type=Int, help='number of set of displacement')
-        spec.input("cwd", valid_type=Str, help='directory where results are saved.')
-        spec.input("norder", valid_type=Int, default=lambda: Int(cls._NORDER),help='1 (harmonic) or 2 (cubic)')
-        spec.input("prefix", valid_type=Str, default=lambda: Str(cls._PREFIX), help='string added to filenames.')
-        spec.input("mode", valid_type=Str, default=lambda: Str(cls._MODE), help='\'random\' (fixed)')
-
+        spec.input("num_disp", valid_type=Int,
+                   help='number of set of displacement')
+        spec.input("cwd", valid_type=Str,
+                   help='directory where results are saved.')
+        spec.input("norder", valid_type=Int, default=lambda: Int(
+            cls._NORDER), help='1 (harmonic) or 2 (cubic)')
+        spec.input("prefix", valid_type=Str, default=lambda: Str(
+            cls._PREFIX), help='string added to filenames.')
+        spec.input("mode", valid_type=Str, default=lambda: Str(
+            cls._MODE), help='\'random\' (fixed)')
 
         spec.inputs['metadata']['options']['parser_name'].default = 'alamode.displace'
         spec.inputs['metadata']['options']['input_filename'].default = 'displace_random.in'
@@ -374,18 +386,19 @@ class displace_random_CalcJob(alamodeBaseCalcjob):
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
 
         cwd = self.inputs.cwd.value
-        if len(cwd)>0:
+        if len(cwd) > 0:
             os.makedirs(cwd, exist_ok=True)
 
         if False:
             if isinstance(self.inputs.structure_org, Str):
                 target_path = self.inputs.structure_org.value
                 _, structure_org_filename = os.path.split(target_path)
-                folder.insert_path(target_path, dest_name=structure_org_filename)
+                folder.insert_path(
+                    target_path, dest_name=structure_org_filename)
             elif isinstance(self.inputs.structure_org, SinglefileData):
                 structure_org_filename = self._STRUCTURE_ORG_FILENAME
                 with folder.open(self.inputs.structure_org.filename,
-                                'w', encoding='utf8') as handle:
+                                 'w', encoding='utf8') as handle:
                     handle.write(self.inputs.structure_org.get_content())
             elif isinstance(self.inputs.structure_org, StructureData):
                 # make structure_org_filenmame in the cwd directory
@@ -394,7 +407,8 @@ class displace_random_CalcJob(alamodeBaseCalcjob):
                 structure_org_filename = self._STRUCTURE_ORG_FILENAME
                 if len(structure_org_filename) == 0:
                     raise ValueError("len(structure_org_filename)==0")
-                structure_org_filepath = os.path.join(cwd, structure_org_filename)
+                structure_org_filepath = os.path.join(
+                    cwd, structure_org_filename)
                 format = self.inputs.format.value
                 if format == "LAMMPS":
                     with open(structure_org_filepath, "w") as f:
@@ -405,18 +419,21 @@ class displace_random_CalcJob(alamodeBaseCalcjob):
                 elif format == "VASP":
                     io.write(structure_org_filepath, style="vasp")
                 else:
-                    raise ValueError(f'unknown format. format={self.format.value}')
+                    raise ValueError(
+                        f'unknown format. format={self.format.value}')
                 folder.insert_path(structure_org_filepath,
-                                dest_name=structure_org_filename)
+                                   dest_name=structure_org_filename)
             else:
-                raise ValueError("unknown instance to self.inputs.structure_org")
+                raise ValueError(
+                    "unknown instance to self.inputs.structure_org")
         else:
             try:
-                structure_org_filename = folder_prepare_object(folder, self.inputs.structure_org, 
-                            actions = [List,StructureData,SinglefileData],
-                            cwd = self.inputs.cwd, 
-                            filename = self._STRUCTURE_ORG_FILENAME,
-                            format = self.inputs.format)
+                structure_org_filename = folder_prepare_object(folder, self.inputs.structure_org,
+                                                               actions=[
+                                                                   List, StructureData, SinglefileData],
+                                                               cwd=self.inputs.cwd,
+                                                               filename=self._STRUCTURE_ORG_FILENAME,
+                                                               format=self.inputs.format)
             except ValueError as err:
                 raise InputValidationError(str(err))
             except TypeError as err:
@@ -463,11 +480,10 @@ def _parse_displace(handle):
             displacement.update(number_of_displacement)
             break
 
-
-    displacement_keys =  list(displacement.keys())
+    displacement_keys = list(displacement.keys())
     if "displacement_mode" not in displacement_keys or \
         "output_filename" not in displacement_keys or \
-        "number_of_displacements" not in displacement_keys:
+            "number_of_displacements" not in displacement_keys:
         return None
 
     return displacement
@@ -495,22 +511,22 @@ class displace_ParseJob(Parser):
             _type_: _description_
         """
         cwd = self.node.inputs.cwd.value
-        if len(cwd)>0:
+        if len(cwd) > 0:
             os.makedirs(cwd, exist_ok=True)
         alm_prefix_node = self.node.inputs.prefix
 
         try:
             output_folder = self.retrieved
-        except:
+        except Exception:
             return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
         try:
             with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                 try:
                     output_displace = _parse_displace(handle=handle)
-                except Exception as err:
-                    _, exit_code = save_output_folder_files(output_folder, 
-                                     cwd, alm_prefix_node)
+                except Exception:
+                    _, exit_code = save_output_folder_files(output_folder,
+                                                            cwd, alm_prefix_node)
                     return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
         except OSError:
             return self.exit_codes.ERROR_READING_OUTPUT_FILE
@@ -519,9 +535,6 @@ class displace_ParseJob(Parser):
 
         if output_displace is None:
             return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
-
-
-
 
         self.out("results", Dict(dict=output_displace))
 
@@ -536,7 +549,8 @@ class displace_ParseJob(Parser):
         elif format == "VASP":
             io_format = "vasp"
         else:
-            return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION # (f'unknown format. format={self.format.value}')
+            # (f'unknown format. format={self.format.value}')
+            return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
 
         import io
 
@@ -544,14 +558,15 @@ class displace_ParseJob(Parser):
         for _dispfile_in in output_folder.list_object_names():
             if fnmatch(_dispfile_in, disp_input_filename):
                 _content = output_folder.get_object_content(_dispfile_in)
-                # read as ase Atoms, 
+                # read as ase Atoms,
                 try:
                     atoms = load_atoms_bare(
                         io.StringIO(_content), io_format)
-                except Exception as err:
-                    _, exit_code = save_output_folder_files(output_folder, 
-                                     cwd, alm_prefix_node)
-                    raise self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION # may be error occurs. What kind of errors?
+                except Exception:
+                    _, exit_code = save_output_folder_files(output_folder,
+                                                            cwd, alm_prefix_node)
+                    # may be error occurs. What kind of errors?
+                    raise self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
                 displaced_structures.append(StructureData(ase=atoms))
 
         if False:
@@ -563,7 +578,7 @@ class displace_ParseJob(Parser):
                     with open(_target_path, "w") as f:
                         f.write(_content)
         else:
-            _, exit_code = save_output_folder_files(output_folder, cwd, self.node.inputs.prefix.value)
+            _, exit_code = save_output_folder_files(
+                output_folder, cwd, self.node.inputs.prefix.value)
 
         self.out('displaced_structures', TrajectoryData(displaced_structures))
-

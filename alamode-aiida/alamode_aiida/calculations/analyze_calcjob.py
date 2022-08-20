@@ -1,14 +1,14 @@
 # Copyright 2022 Hiori Kino
-# 
+#
 # Licensed under the Apache License, Version 2.0 (the “License”);
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 # http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an “AS IS” BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# 
+#
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
@@ -109,7 +109,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
 
             try:
                 param = analzePhononOptions(
-                calc_value, **self.inputs.param.get_dict())
+                    calc_value, **self.inputs.param.get_dict())
             except ValueError as err:
                 raise InputValidationError(str(err))
 
@@ -141,7 +141,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
             print(self.inputs.param.get_dict())
             try:
                 param = analzePhononOptions(
-                calc_value, **self.inputs.param.get_dict())
+                    calc_value, **self.inputs.param.get_dict())
             except ValueError as err:
                 raise InputValidationError(str(err))
 
@@ -153,7 +153,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
                                                          param, return_cmd=True)
             else:
                 cmdline = print_lifetime_at_given_temperature("", calc_value,
-                                                              result_filename, 
+                                                              result_filename,
                                                               param, return_cmd=True)
             print("commandline", cmdline)
 
@@ -180,13 +180,13 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
 
             try:
                 param = analzePhononOptions(
-                calc_value, **self.inputs.param.get_dict())
+                    calc_value, **self.inputs.param.get_dict())
             except ValueError as err:
                 raise InputValidationError(str(err))
 
             cmdline = print_cumulative_thermal_conductivity("", calc_value,
-                                                        result_filename,
-                                                        param, return_cmd=True)
+                                                            result_filename,
+                                                            param, return_cmd=True)
             # code
             codeinfo = CodeInfo()
             codeinfo.code_uuid = self.inputs.code.uuid
@@ -204,6 +204,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
             return calcinfo
         else:
             raise ValueError(f"unknown calc={calc_value}.")
+
 
 def _parse_analyze_phonons_kappa_boundary(handle):
     data = handle.read().splitlines()
@@ -284,10 +285,11 @@ def _parse_analyze_phonons_tau_at_temperature(handler):
     values = []
     for _x in data[data_start:]:
         _xx = re.split(" +", _x.strip())
-        values.append(list(map(float,_xx)))
+        values.append(list(map(float, _xx)))
 
     result = {'temp': temp, 'kpoint': kpoint_range, 'mode_range': mode_range}
     return result,  splitted_header,  values
+
 
 def _parse_analyze_phonons_cumulative(handler):
     data = handler.read().splitlines()
@@ -320,10 +322,11 @@ def _parse_analyze_phonons_cumulative(handler):
     values = []
     for _x in data[data_start:]:
         _xx = re.split(" +", _x.strip())
-        values.append(list(map(float,_xx)))
+        values.append(list(map(float, _xx)))
 
     result = {'temp': temp,  'mode_range': mode_range}
     return result,  splitted_header,  values
+
 
 class analyze_phonons_ParseJob(Parser):
 
@@ -334,7 +337,7 @@ class analyze_phonons_ParseJob(Parser):
         if calc == "kappa_boundary":
             try:
                 output_folder = self.retrieved
-            except:
+            except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
             try:
@@ -342,7 +345,7 @@ class analyze_phonons_ParseJob(Parser):
                     try:
                         size, header, values = _parse_analyze_phonons_kappa_boundary(
                             handle)
-                    except Exception as err:
+                    except Exception:
                         return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
 
             except OSError:
@@ -350,10 +353,9 @@ class analyze_phonons_ParseJob(Parser):
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
-
             filename = self.node.get_option('output_filename')
             if filename not in output_folder.list_object_names():
-                return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING 
+                return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
             _content = output_folder.get_object_content(filename)
             if self.node.inputs.output_filename.value == _OUTPUT_FILENAME_DEFAULT:
                 filename = f"{prefix}_analyze_phonons_{calc}.dat"
@@ -374,20 +376,19 @@ class analyze_phonons_ParseJob(Parser):
         elif calc == "tau":
             try:
                 output_folder = self.retrieved
-            except:
+            except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result, header, values = _parse_analyze_phonons_tau_at_temperature(handle)
-                    except Exception as err:
+                    except Exception:
                         return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
-
 
             filename = self.node.get_option('output_filename')
             if filename not in output_folder.list_object_names():
@@ -413,20 +414,19 @@ class analyze_phonons_ParseJob(Parser):
         elif calc == "cumulative":
             try:
                 output_folder = self.retrieved
-            except:
+            except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result, header, values = _parse_analyze_phonons_cumulative(handle)
-                    except Exception as err:
+                    except Exception:
                         return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
-
 
             filename = self.node.get_option('output_filename')
             if filename not in output_folder.list_object_names():
@@ -448,4 +448,3 @@ class analyze_phonons_ParseJob(Parser):
             self.out("cumulative", kappa)
 
             self.out('results', Dict(dict=result))
-

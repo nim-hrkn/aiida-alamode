@@ -11,13 +11,11 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#!/usr/bin/env python
+# !/usr/bin/env python
 # coding: utf-8
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from aiida.engine import calcfunction
-from aiida.orm import Str,  Int
 
 from ase.io.espresso import write_espresso_in
 from ase import Atom, Atoms
@@ -26,7 +24,6 @@ from tempfile import TemporaryFile
 import numpy as np
 from itertools import combinations_with_replacement
 import fnmatch
-import os
 import sys
 
 AU2ANG = 0.529177
@@ -52,13 +49,13 @@ def _list_to_str(value, add="x"):
 
 def check_almprefixtype(value):
     flag = False
-    if isinstance(value,float):
+    if isinstance(value, float):
         flag = True
-    elif isinstance(value,int):
+    elif isinstance(value, int):
         flag = True
-    elif isinstance(value,str):
+    elif isinstance(value, str):
         flag = True
-    elif isinstance(value,list):
+    elif isinstance(value, list):
         flag = True
     elif isinstance(value, np.ndarray):
         flag = True
@@ -69,6 +66,7 @@ def check_almprefixtype(value):
         raise ValueError(f'invalid type in check_almprefixtype. type={typename}')
 
     return flag
+
 
 class AlmBasePrefixMaker(object):
     """This class is obsolete."""
@@ -113,7 +111,7 @@ class AlmBasePrefixMaker(object):
 
 class AlmPrefixMaker(AlmBasePrefixMaker):
     """This class is obsolete.
-    
+
     make prefix such as "{name}_k{kmesh}_{norder.__str()__}".
     """
     _ORDER = ["name", "kmesh", "norder"]
@@ -125,7 +123,7 @@ class AlmPrefixMaker(AlmBasePrefixMaker):
 
 class AlmPathMaker(AlmBasePrefixMaker):
     """This class is obsolete.
-    
+
     make path name such as "{name}_k{kmesh}_{norder.__str()__}".
     """
     _ORDER = ["name", "kmesh", "norder"]
@@ -133,8 +131,8 @@ class AlmPathMaker(AlmBasePrefixMaker):
     def __init__(self, **kwargs):
         self._order = self._ORDER
         super().__init__(**kwargs)
-        #os.makedirs(self.prefix, exist_ok=True)
-        #print("make", self.prefix)
+        # os.makedirs(self.prefix, exist_ok=True)
+        # print("make", self.prefix)
 
 
 def make_alm_uniform_kmesh(atoms: Atoms, kspacing: float = 0.05, koffset=(0, 0, 0), n=3):
@@ -354,13 +352,13 @@ doi:10.1016/j.commatsci.2010.05.010
             lat = next(lines)
         except StopIteration:
             break
-        line = next(lines)
+        _ = next(lines)
         kpath = next(lines)
         lat = lat.split()[0]
         bandpath[lat] = kpath.strip()
         try:
-            line = next(lines)
-            line = next(lines)
+            _ = next(lines)
+            _ = next(lines)
         except StopIteration:
             break
     return bandpath
@@ -413,10 +411,10 @@ def _make_cutoff_pairs(uniqsymbols, cutoff, norder):
     For example,
     uniqsymbols = ["Mg", "O"]
     norder = 2
-    cutoff = {"Mg-*": [None, 5.0]}    
+    cutoff = {"Mg-*": [None, 5.0]}
 
-    The size of cutoff.value must be norder. 
-    Both the possibilities of Mg-O and O-Mg are examined for Mg-O. 
+    The size of cutoff.value must be norder.
+    Both the possibilities of Mg-O and O-Mg are examined for Mg-O.
 
     Args:
         uniqsymbols (list): a list of unique element symbols.
@@ -468,7 +466,7 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
     convert Atoms to alm.in.
 
     For example, the cutoff distances (in the unit of a_0) of the element-element pair if NORDER==2 is given by
-        cutoff = {"Si-Si": [None, 6.5]}.   
+        cutoff = {"Si-Si": [None, 6.5]}.
     cutoff = {"Si-Si": [None]} if NORDER==1.
 
 
@@ -515,7 +513,6 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
     if mode not in ["phonons", "RTA"]:
         general["NAT"] = str(nat)
 
-
     if "general" not in dic.keys():
         dic["general"] = general
     else:
@@ -528,7 +525,6 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
 
     interaction = {"NORDER": norder}
     dic["interaction"] = interaction
-
 
     cell = []
     a = superstructure.cell.ravel().max()

@@ -11,19 +11,13 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from ase import Atoms
-from fnmatch import fnmatch
 from alamode import plotdos
 from alamode import plotband
-from aiida.orm import Str, Float, Dict, Int, Bool
-from aiida.common.datastructures import CalcInfo, CodeInfo
-from aiida.common.folders import Folder
-from aiida.parsers.parser import Parser
-from aiida.engine import CalcJob, calcfunction, WorkChain
+from aiida.orm import Str
+
+from aiida.engine import calcfunction, WorkChain
 from aiida.plugins import DataFactory
-from ..io.lammps_support import write_lammps_data
-from ..io.ase_support import load_atoms_bare
-from ..io.displacement import displacemenpattern_to_lines
+
 
 import os
 import numpy as np
@@ -37,7 +31,6 @@ FolderData = DataFactory('folder')
 List = DataFactory('list')
 StructureData = DataFactory('structure')
 TrajectoryData = DataFactory('array.trajectory')
-
 
 
 def make_pattern_files(displacement_patterns: list, cwd: str, filename_template: str):
@@ -66,7 +59,6 @@ def make_pattern_files(displacement_patterns: list, cwd: str, filename_template:
     return filepath_list
 
 
-
 def _make_phband_figure(files,  unitname: str = "kayser",
                         normalize_xaxis=False, print_key=False,
                         tight_layout=True, filename: str = None):
@@ -82,20 +74,21 @@ def _make_phband_figure(files,  unitname: str = "kayser",
         data_merged_ax = plotband.preprocess_data(
             files, unitname, normalize_xaxis)
 
-    plotband.run_plot(files,nax, xticks_ax, xticklabels_ax,
-                                     xmin_ax, xmax_ax, ymin, ymax, data_merged_ax, 
-                                      unitname, options.print_key, show=False)
+    plotband.run_plot(files, nax, xticks_ax, xticklabels_ax,
+                      xmin_ax, xmax_ax, ymin, ymax, data_merged_ax,
+                      unitname, options.print_key, show=False)
     if tight_layout:
         plt.tight_layout()
     plt.savefig(filename)
     plt.close()
     return filename
 
+
 @ calcfunction
 def _make_band_file(band_filenames: (Str, List, SinglefileData), cwd: Str,
                     prefix: Str, img_filename: Str, unitname: Str):
 
-    cwd = cwd.value     
+    cwd = cwd.value
     os.makedirs(cwd, exist_ok=True)
 
     if isinstance(band_filenames, SinglefileData):
@@ -114,7 +107,7 @@ def _make_band_file(band_filenames: (Str, List, SinglefileData), cwd: Str,
         filepaths.append(os.path.join(cwd, _file))
 
     img_filepath = _make_phband_figure(filepaths, unitname.value,
-                                   filename=img_filepath)
+                                       filename=img_filepath)
     return SinglefileData(img_filepath)
 
 
@@ -154,11 +147,12 @@ class PhbandWorkChain(WorkChain):
 
 def _make_phdos_figure(files, unitname="kayser", print_pdos=False,
                        print_key=False, filename: str = None):
-    plotdos.run_plot( files, unitname, print_pdos, print_key, show=False)
+    plotdos.run_plot(files, unitname, print_pdos, print_key, show=False)
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
     return filename
+
 
 @ calcfunction
 def _make_dos_file(dos_filenames: (Str, List, SinglefileData),

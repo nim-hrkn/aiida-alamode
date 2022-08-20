@@ -1,13 +1,10 @@
 from aiida.orm import Code
-from aiida.orm import Str, Int, Dict
-from aiida.engine import calcfunction, WorkChain, ToContext, append_
 from aiida.orm import Str, Dict
+from aiida.engine import calcfunction, WorkChain, append_
 from aiida.plugins import DataFactory
 from itertools import cycle
 import os
 
-from aiida.engine import calcfunction, workfunction, submit, run
-from aiida.orm import load_code, load_node
 from ..io.misc import zerofillStr
 
 # ## parallel submit
@@ -48,30 +45,6 @@ def _filelist_to_code_list(folderdata, codelist, index):
 
         codelist.append(_code_string)
     return Str(codelist[index.value])
-
-
-if False:
-    class ScatterInputAndCodeWorkChain(WorkChain):
-        @classmethod
-        def define(cls, spec):
-            super().define(spec)
-            spec.input("pwx_input_folder", valid_type=FolderData)
-            spec.input('code_string', valid_type=List)
-            spec.input('index', valid_type=Int)
-            spec.outline(cls.rearange_data)
-            spec.output('code_string_list', valid_type=Str)
-            spec.output('pwx_input_list', valid_type=Str)
-
-        def rearange_data(self):
-            filename = _filelist_to_pwx_input_list(
-                self.inputs.pwx_input_folder, self.inputs.index)
-            code_string = _filelist_to_code_list(self.inputs.pwx_input_folder,
-                                                 self.inputs.code_string,
-                                                 self.inputs.index)
-            self.out("code_string", codestring)
-            self.out("pwx_input", filename)
-
-    # This subroutine is important.
 
 
 @calcfunction
@@ -137,9 +110,8 @@ def _pack_retrieved_to_FolderData(calculations, object_name, cwd, prefix,
     filename_template = filename_template.value
 
     logfolder = FolderData()
-    results = {}
     for _i, w in enumerate(calculations):
-        counter = zerofillstr.str(_i+1)  # counter for output file
+        counter = zerofillStr.str(_i+1)  # counter for output file
         folder = w.get_outgoing().get_node_by_label('retrieved')
         content = folder.get_object_content(object_name)
         filename = filename_template.replace(
@@ -210,15 +182,13 @@ class force_simulator_lammps_WorkChain(WorkChain):
         spec.output("results", valid_type=List)
         spec.output("forces", valid_type=List, help='resulting forces')
         spec.output("displacement_and_forces", valid_type=Dict, help='displacement and forces')
-        #spec.output("output_folder", valid_type=FolderData)
-        #spec.output("dfset_folder", valid_type=FolderData)
+        # spec.output("output_folder", valid_type=FolderData)
+        # spec.output("dfset_folder", valid_type=FolderData)
 
     def submit_workchains(self):
         structures = self.inputs.structures
-        cwd_node = self.inputs.cwd
         potential = self.inputs.potential
         code = self.inputs.code_string.value
-        prefix = self.inputs.prefix.value
         metadata_options = self.inputs.options.get_dict()
         parameters = self.inputs.parameters
 
@@ -226,9 +196,7 @@ class force_simulator_lammps_WorkChain(WorkChain):
 
         code_lammps_force = Code.get_from_string(code)
 
-        zerofillstr = zerofillStr(num_disp)
         for _i in range(num_disp):
-            counter = zerofillstr.str(_i+1)  # counter for output file
 
             structure = structures.get_step_structure(_i)
 
@@ -241,7 +209,7 @@ class force_simulator_lammps_WorkChain(WorkChain):
 
             future = self.submit(builder)  # or self.submit
 
-            #self.to_context(**{key: future})
+            # self.to_context(**{key: future})
             self.to_context(simulator=append_(future))
 
     def inspect_workchains(self):
@@ -256,7 +224,6 @@ class force_simulator_lammps_WorkChain(WorkChain):
 
         calculations = self.ctx.simulator
 
-  
         num_disp = len(calculations)
 
         results = {}
@@ -299,8 +266,6 @@ class force_simulator_lammps_WorkChain(WorkChain):
                     f.write(content)
                 results[f'output{counter}'] = filepath
             # self.out('output_folder', _pack_to_FolderData( **results))
-
-
 
         if len(cwd) > 0:
             object_name = 'trajectory.lammpstrj'

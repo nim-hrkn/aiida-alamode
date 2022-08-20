@@ -3,8 +3,6 @@ import numpy as np
 
 def displacemenpattern_to_lines(displacement_pattern: list) -> list:
 
-    filepath_list = []
-
     basis = []
     for pats in displacement_pattern:
         for pat in pats:
@@ -30,14 +28,13 @@ def lines_to_displacementpattern(lines):
     basis_key = lines[0].split(":")[0].strip()
     basis = lines[0].split(":")[1].strip()
     if basis_key == "Basis":
-        if basis=="C":
+        if basis == "C":
             basis = "Cartesian"
         else:
             raise ValueError(f"unknown basis={basis}")
     else:
         raise ValueError(f"unknown basis_key={basis_key}")
 
-    itot = 0
     pattern = []
     lines_iter = iter(lines)
     next(lines_iter)

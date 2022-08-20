@@ -14,19 +14,15 @@
 from aiida.orm import Str, Dict, Int
 from aiida.common.datastructures import CalcInfo, CodeInfo
 from aiida.common.folders import Folder
-from aiida.engine import CalcJob, calcfunction
 from aiida.parsers.parser import Parser
 from aiida.plugins import DataFactory
 
 import os
-from fnmatch import fnmatch
 
-from sympy import list2numpy
 
 from aiida.common.exceptions import InputValidationError
 
 from ..io.alm_input import make_alm_in, atoms_to_alm_in, make_alm_kpoint
-from ..io.displacement import lines_to_displacementpattern
 from ..io.aiida_support import folder_prepare_object, save_output_folder_files
 from ..common.base import alamodeBaseCalcjob
 
@@ -38,9 +34,6 @@ SinglefileData = DataFactory('singlefile')
 FolderData = DataFactory('folder')
 List = DataFactory('list')
 ArrayData = DataFactory('array')
-
-
-
 
 
 class anphon_CalcJob(alamodeBaseCalcjob):
@@ -58,15 +51,20 @@ class anphon_CalcJob(alamodeBaseCalcjob):
     def define(cls, spec):
 
         super().define(spec)
-        spec.input("structure", valid_type=StructureData, help='primitive structure.')
+        spec.input("structure", valid_type=StructureData,
+                   help='primitive structure.')
         spec.input("prefix", valid_type=Str,
                    default=lambda: Str(cls._PREFIX_DEFAULT), help='string added to filename.')
-        spec.input("cwd", valid_type=Str, help='directory where results are saved.')
-        spec.input('norder', valid_type=Int, default=lambda: Int(cls._NORDER), help='1 (harmonic) or 2 (cubic)')
-        spec.input('fcsxml', valid_type=(SinglefileData, List), help='Probably it is input_ANPHON. It is used at norder=2.')
-        spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE), help='anphon mode')
+        spec.input("cwd", valid_type=Str,
+                   help='directory where results are saved.')
+        spec.input('norder', valid_type=Int, default=lambda: Int(
+            cls._NORDER), help='1 (harmonic) or 2 (cubic)')
+        spec.input('fcsxml', valid_type=(SinglefileData, List),
+                   help='Probably it is input_ANPHON. It is used at norder=2.')
+        spec.input('mode', valid_type=Str, default=lambda: Str(
+            cls._MODE), help='anphon mode')
         spec.input('phonons_mode', valid_type=Str,
-                   default=lambda: Str(cls._PHONONS_MODE),help='phonon mode')
+                   default=lambda: Str(cls._PHONONS_MODE), help='phonon mode')
         spec.input('kappa_spec', valid_type=Int,
                    default=lambda: Int(cls._KAPPA_SPEC))
         # spec.input('kparam', valid_type=Dict, default=lambda: Dict(dict=cls._PARAM))
@@ -76,8 +74,8 @@ class anphon_CalcJob(alamodeBaseCalcjob):
                    default=lambda: Dict(dict=cls._PARAM), help='additional parameters')
 
         spec.inputs['metadata']['options']['parser_name'].default = 'alamode.anphon'
-        spec.inputs['metadata']['options']['input_filename'].default = f'anphon.in'
-        spec.inputs['metadata']['options']['output_filename'].default = f'anphon.out'
+        spec.inputs['metadata']['options']['input_filename'].default = 'anphon.in'
+        spec.inputs['metadata']['options']['output_filename'].default = 'anphon.out'
         spec.inputs['metadata']['options']['resources'].default = {
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
 
@@ -94,7 +92,6 @@ class anphon_CalcJob(alamodeBaseCalcjob):
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
         mode = self.inputs.mode.value
         norder = self.inputs.norder.value
-        cwd = self.inputs.cwd.value
         alm_prefix_value = self.inputs.prefix.value
 
         if mode == "phonons":
@@ -110,17 +107,16 @@ class anphon_CalcJob(alamodeBaseCalcjob):
                     with folder.open(fcsxml_filename,  "w", encoding='utf8') as f:
                         f.write(self.inputs.fcsxml.get_content())
                 else:
-                    raise ValueError("unknown instance in self.inputs.fcsxml. type=", 
-                                    type(self.inputs.fcsxml))
+                    raise ValueError("unknown instance in self.inputs.fcsxml. type=",
+                                     type(self.inputs.fcsxml))
             else:
                 try:
-                    fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml, 
-                                        filename=self._FCS_FILENAME, actions=(SinglefileData, List))
+                    fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml,
+                                                            filename=self._FCS_FILENAME, actions=(SinglefileData, List))
                 except ValueError as err:
                     raise InputValidationError(str(err))
                 except TypeError as err:
                     raise InputValidationError(str(err))
-
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -138,10 +134,11 @@ class anphon_CalcJob(alamodeBaseCalcjob):
                         kpoint_param = None
                 qmesh_value = self.inputs.qmesh.get_list()
                 if len(qmesh_value) != 3:
-                    raise InputValidationError(f"size of qmesh must be 3.")
+                    raise InputValidationError("size of qmesh must be 3.")
                 kpoint_param = ["2", " ".join(list(map(str, qmesh_value)))]
             else:
-                raise InputValidationError(f"unknown phonons_mode={phonons_mode}")
+                raise InputValidationError(
+                    f"unknown phonons_mode={phonons_mode}")
 
             other_param = self.inputs.param.get_dict()
             if "general" in other_param:
@@ -197,17 +194,16 @@ class anphon_CalcJob(alamodeBaseCalcjob):
                     with folder.open(target_filename, "w", encoding='utf8') as f:
                         f.write(fcsxml.get_content())
                 else:
-                    raise ValueError("unknown instance in self.inputs.fcsxml. type=", 
-                                    type(self.inputs.fcsxml))
+                    raise ValueError("unknown instance in self.inputs.fcsxml. type=",
+                                     type(self.inputs.fcsxml))
             else:
                 try:
-                    target_filename = folder_prepare_object(folder, fcsxml, actions= (SinglefileData, List) ,
-                    filename=f'{alm_prefix_value}_RTA.xml')
+                    target_filename = folder_prepare_object(folder, fcsxml, actions=(SinglefileData, List),
+                                                            filename=f'{alm_prefix_value}_RTA.xml')
                 except ValueError as err:
                     raise InputValidationError(str(err))
                 except TypeError as err:
                     raise InputValidationError(str(err))
-
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -322,6 +318,7 @@ def _parse_anphon(handle):
                 raise ValueError("failed to get result.")
     raise ValueError("failed to get result.")
 
+
 def _parse_anphon_RTA(handle):
     data = handle.read().splitlines()
     data_iter = iter(data)
@@ -371,7 +368,6 @@ class anphon_ParseJob(Parser):
 
     def parse(self, **kwargs):
         mode = self.node.inputs.mode.value
-        norder = self.node.inputs.norder.value
         prefix = self.node.inputs.prefix.value
         alm_prefix_node = self.node.inputs.prefix
 
@@ -382,16 +378,16 @@ class anphon_ParseJob(Parser):
         if mode == "RTA":
             try:
                 output_folder = self.retrieved
-            except:
+            except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result = _parse_anphon_RTA(handle=handle)
-                    except ValueError as err:
-                        _, exit_code = save_output_folder_files(output_folder, 
-                                     cwd, alm_prefix_node)
+                    except ValueError:
+                        _, exit_code = save_output_folder_files(output_folder,
+                                                                cwd, alm_prefix_node)
                         return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
@@ -448,16 +444,16 @@ class anphon_ParseJob(Parser):
         elif mode == "phonons":
             try:
                 output_folder = self.retrieved
-            except:
+            except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result = _parse_anphon(handle=handle)
-                    except ValueError as err:
-                        _, exit_code = save_output_folder_files(output_folder, 
-                                     cwd, alm_prefix_node)
+                    except ValueError:
+                        _, exit_code = save_output_folder_files(output_folder,
+                                                                cwd, alm_prefix_node)
                         return self.exit_codes.ERROR_INVALID_OUTPUT
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
@@ -469,8 +465,8 @@ class anphon_ParseJob(Parser):
             if len(cwd) > 0:
                 filename = self.node.get_option('input_filename')
                 if filename not in output_folder.list_object_names():
-                    _, exit_code = save_output_folder_files(output_folder, 
-                                     cwd, alm_prefix_node)
+                    _, exit_code = save_output_folder_files(output_folder,
+                                                            cwd, alm_prefix_node)
                     raise self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
                 _content = output_folder.get_object_content(filename)
                 filename = f"{prefix}_anphon_{mode}_{phonons_mode}.in"
@@ -480,8 +476,8 @@ class anphon_ParseJob(Parser):
 
                 filename = self.node.get_option('output_filename')
                 if filename not in output_folder.list_object_names():
-                    _, exit_code = save_output_folder_files(output_folder, 
-                                     cwd, alm_prefix_node)
+                    _, exit_code = save_output_folder_files(output_folder,
+                                                            cwd, alm_prefix_node)
                     raise self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
                 _content = output_folder.get_object_content(filename)
                 filename = f"{prefix}_anphon_{mode}_{phonons_mode}.out"
@@ -498,4 +494,3 @@ class anphon_ParseJob(Parser):
                              SinglefileData(target_path))
 
             self.out('results', Dict(dict=result))
-            

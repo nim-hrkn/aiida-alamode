@@ -1,13 +1,15 @@
 
 from ase.calculators.lammps import Prism, convert
+import numpy as np
+
 
 def write_lammps_data(fd, atoms, specorder=None, force_skew=False,
                       prismobj=None, velocities=False, units="metal",
                       atom_style='atomic'):
     """Write atomic structure data to a LAMMPS data file.
-    
+
     The original code is from ASE.
-    
+
     オリジナルコードは
     - Massesを書かないので加えた。
     - xy xz yz を書かないので加えた。
@@ -42,8 +44,7 @@ def write_lammps_data(fd, atoms, specorder=None, force_skew=False,
         # To index elements in the LAMMPS data file
         # (indices must correspond to order in the potential file)
         species = specorder
-        
-   
+
     n_atom_types = len(species)
     fd.write("{0}  atom types\n".format(n_atom_types))
 
@@ -67,7 +68,6 @@ def write_lammps_data(fd, atoms, specorder=None, force_skew=False,
             )
         )
     fd.write("\n\n")
-    
 
     masses = atoms.get_masses()
     fd.write("Masses\n\n")
@@ -76,7 +76,7 @@ def write_lammps_data(fd, atoms, specorder=None, force_skew=False,
         mass = masses[_i]
         fd.write(f"  {_specie_id+1} {mass}\n")
     fd.write("\n\n")
-    
+
     # Write (unwrapped) atomic positions.  If wrapping of atoms back into the
     # cell along periodic directions is desired, this should be done manually
     # on the Atoms object itself beforehand.
@@ -158,5 +158,3 @@ def write_lammps_data(fd, atoms, specorder=None, force_skew=False,
             )
 
     fd.flush()
-    
-    
