@@ -23,7 +23,7 @@ from fnmatch import fnmatch
 
 from ..common.base import alamodeBaseCalcjob
 
-from ..io.aiida_support import folder_prepare_object, save_output_folder_files, file_type_conversion
+from ..io.aiida_support import folder_prepare_object, save_output_folder_files
 
 from ..io.alm_input import make_alm_in, atoms_to_alm_in
 from ..io.displacement import lines_to_displacementpattern
@@ -243,8 +243,7 @@ class almBaseCalcJob(alamodeBaseCalcjob):
         spec.input("structure", valid_type=StructureData,
                    help='structure of cyrstal.')
 
-        spec.input("cwd", valid_type=Str, default=lambda: Str(
-            cls._CWD), help='directory where results are saved.')
+        spec.input("cwd", valid_type=Str, required=False, help='directory where results are saved.')
         spec.input("norder", valid_type=Int, help='1 (harmonic) or 2 (cubic)')
         spec.input("prefix", valid_type=Str,
                    default=lambda: Str(cls._PREFIX_DEFAULT), help='string added to the filename.')
@@ -267,6 +266,8 @@ class almSuggestCalcJob(almBaseCalcJob):
     """alm mode="suggest"
 
     pattern files are saved as f"{prefix}.pattern_*".
+
+    if 'cwd' is given. The retrieved files will be saved in the directory specified by 'cwd'.
 
     default input filename: alm_suggest.in
     default output filename: alm_suggest.out
@@ -324,6 +325,8 @@ class almSuggestCalcJob(almBaseCalcJob):
         # add files to retrieve list
         pattern_files.extend(
             [self.options.input_filename, self.options.output_filename])
+
+        pattern_files.append('_aiidasubmit.sh')
         calcinfo.retrieve_list = pattern_files
 
         return calcinfo
@@ -335,6 +338,8 @@ class almOptCalcJob(almBaseCalcJob):
     default input filename: alm_opt.in
     default output filename: alm_opt.out
 
+    if 'cwd' is given. The retrieved files will be saved in the directory specified by 'cwd'.
+
     """
     _WITHMPI = True
     _MODE = "opt"
@@ -345,7 +350,6 @@ class almOptCalcJob(almBaseCalcJob):
     _PARAM_DEFAULT = {}
     _input_ANPHON_file = "alm_opt.xml"
     _force_constants = "alm_opt.fcs"
-    _FC2XML = []
 
     @classmethod
     def define(cls, spec):
@@ -354,8 +358,8 @@ class almOptCalcJob(almBaseCalcJob):
         spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE),
                    help='mode of alm=\'opt\'')
         spec.input('dfset', valid_type=List, help='DFSET')
-        spec.input('fc2xml', valid_type=(List, SinglefileData),
-                   default=lambda: List(list=cls._FC2XML), help='xml file for the cubic term')
+        spec.input('fc2xml', valid_type=(List, SinglefileData), required=False,
+                   help='xml file for the cubic term')
 
         spec.inputs['metadata']['options']['input_filename'].default = 'alm_opt.in'
         spec.inputs['metadata']['options']['output_filename'].default = 'alm_opt.out'
@@ -369,28 +373,18 @@ class almOptCalcJob(almBaseCalcJob):
         norder = self.inputs.norder.value
 
         # copy dfset_filename
-        dfset = self.inputs.dfset.get_list()
-        DFSETfilename = self._DFSET_FILENAME
-        with folder.open(DFSETfilename, "w") as f:
-            f.write("\n".join(dfset))
-
-        fc2xml = self.inputs.fc2xml
         if False:
-            if isinstance(fc2xml, List):
-                fc2xml = fc2xml.get_list()
-                if len(fc2xml) > 0:
-                    fc2xml_filename = f"{prefix_value}.xml"
-                    if len(fc2xml) > 0:
-                        with folder.open(fc2xml_filename, "w") as f:
-                            f.write("\n".join(fc2xml))
-            elif isinstance(fc2xml, SinglefileData):
-                fc2xml_filename = fc2xml.list_object_names()[0]
-                with folder.open(fc2xml_filename, "w") as f:
-                    f.write(fc2xml.get_content())
-            else:
-                raise ValueError('unknown type for self.inputs.fc2xml, type=',
-                                 type(fc2xml))
+            dfset = self.inputs.dfset.get_list()
+            DFSETfilename = self._DFSET_FILENAME
+            with folder.open(DFSETfilename, "w") as f:
+                f.write("\n".join(dfset))
         else:
+            DFSETfilename = folder_prepare_object(folder, self.inputs.dfset,
+                                                  filename=self._DFSET_FILENAME,
+                                                  actions=[List, SinglefileData])
+
+        if "fc2xml" in self.inputs:
+            fc2xml = self.inputs.fc2xml
             fc2xml_filename = folder_prepare_object(folder, fc2xml,
                                                     filename=f"{prefix_value}.xml",
                                                     actions=[List, SinglefileData])
@@ -403,11 +397,12 @@ class almOptCalcJob(almBaseCalcJob):
         else:
             param["optimize"] = {"DFSET": DFSETfilename}
 
-        if isinstance(fc2xml, List):
-            if len(fc2xml) > 0:
-                param["optimize"]["FC2XML"] = fc2xml_filename  # only basename?
-        elif isinstance(fc2xml, SinglefileData):
-            param["optimize"]["FC2XML"] = fc2xml_filename
+        if "fc2xml" in self.inputs:
+            if isinstance(fc2xml, List):
+                if len(fc2xml) > 0:
+                    param["optimize"]["FC2XML"] = fc2xml_filename  # only basename?
+            elif isinstance(fc2xml, SinglefileData):
+                param["optimize"]["FC2XML"] = fc2xml_filename
 
         alm_param = atoms_to_alm_in("opt", structure,
                                     dic=param, norder=norder,
@@ -424,7 +419,7 @@ class almOptCalcJob(almBaseCalcJob):
 
         calcinfo = CalcInfo()
         calcinfo.codes_info = [codeinfo]
-        calcinfo.retrieve_list = [
+        calcinfo.retrieve_list = ['_aiidasubmit.sh',
             self.options.input_filename, self.options.output_filename]
 
         for ext in ["fcs", "xml"]:
@@ -437,9 +432,11 @@ class almOptCalcJob(almBaseCalcJob):
 class alm_ParseJob(Parser):
 
     def parse(self, **kwargs):
-        print("alm_ParseJob start")
         mode = self.node.inputs.mode.value
-        cwd = self.node.inputs.cwd.value
+        _cwd = ""
+        if "cwd" in self.node.inputs:
+            _cwd = self.node.inputs.cwd.value
+        cwd = _cwd
         alm_prefix_node = self.node.inputs.prefix
 
         if len(cwd) > 0:
@@ -450,30 +447,29 @@ class alm_ParseJob(Parser):
             mode = "opt"
 
         if mode == "suggest":
-            print("mode suggest")
             try:
                 output_folder = self.retrieved
             except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
+            _, exit_code = save_output_folder_files(output_folder,
+                                                    cwd, alm_prefix_node)
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result = _parse_alm_suggest_output(handle=handle)
                     except Exception:
-                        _, exit_code = save_output_folder_files(output_folder,
-                                                                cwd, alm_prefix_node)
                         raise self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
-            print("result done")
+            self.out('results', Dict(dict=result))
+
+            # main result = pattern files
             pattern_file_dict = _alm_suggest_retrieve_pattern_file_as_Dict(output_folder,
                                                                            alm_prefix_node)
             if (pattern_file_dict.keys()) == 0:
-                _, exit_code = save_output_folder_files(output_folder,
-                                                        cwd, alm_prefix_node)
                 return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
 
             # arrange by result["disp_pattern"]
@@ -484,13 +480,8 @@ class alm_ParseJob(Parser):
                     lines = pattern_file_dict[filename]
                     patern_lines.append(lines_to_displacementpattern(lines))
             if len(patern_lines) == 0:
-                _, exit_code = save_output_folder_files(output_folder,
-                                                        cwd, alm_prefix_node)
                 return self.exit_codes.ERROR_OUTPUT_PATTERN_FILES_MISSING
 
-            _, exit_code = save_output_folder_files(output_folder, cwd, alm_prefix_node)
-
-            self.out('results', Dict(dict=result))
             self.out('pattern', List(list=patern_lines))
 
         elif mode == "opt":
@@ -499,6 +490,14 @@ class alm_ParseJob(Parser):
             except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
+            conversion_table, exit_code = save_output_folder_files(output_folder,
+                                                                   cwd, alm_prefix_node)
+
+            if self.node.get_option('input_filename') not in output_folder.list_object_names():
+                return self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
+            if self.node.get_option('output_filename') not in output_folder.list_object_names():
+                return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
+
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     result = _parse_alm_opt(handle=handle)
@@ -506,53 +505,20 @@ class alm_ParseJob(Parser):
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
-
-            filelist = [self.node.get_option('input_filename'),
-                        self.node.get_option('output_filename')]
-
-            processed_list = []
-            for filename in filelist:
-                if filename in output_folder.list_object_names():
-                    _content = output_folder.get_object_content(filename)
-                    target_path = os.path.join(cwd, filename)
-                    with open(target_path, "w") as f:
-                        f.write(_content)
-                    processed_list.append(filename)
-                else:
-                    if filename == self.node.get_option('input_filename'):
-                        _, exit_code = save_output_folder_files(output_folder,
-                                                                cwd, alm_prefix_node)
-                        return self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
-                    elif filename == self.node.get_option('output_filename'):
-                        _, exit_code = save_output_folder_files(output_folder,
-                                                                cwd, alm_prefix_node)
-                        return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
-
-            conversion_table, _ = save_output_folder_files(output_folder, cwd,
-                                                           alm_prefix_node, except_list=processed_list)
-
-            output_type = SinglefileData
+            self.out('results', Dict(dict=result))
 
             key = "input_ANPHON"
             filename = result["outputfiles"][key]
-            filename = conversion_table[filename]
+            if filename in output_folder.list_object_names():
 
-            output_data, exit_msg = file_type_conversion(cwd, filename, output_type)
-            if exit_msg == 'NOFILE':
-                _, exit_code = save_output_folder_files(output_folder,
-                                                        cwd, alm_prefix_node)
-                return self.exit_codes.ERROR_OUTPUT_XML_MISSING
-            self.out(key, output_data)
+                with output_folder.open(filename, "rb") as handle:
+
+                    output_data = SinglefileData(handle)
+                self.out(key, output_data)
 
             key = "force_constants"
             filename = result["outputfiles"][key]
-            filename = conversion_table[filename]
-
-            output_data, exit_msg = file_type_conversion(cwd, filename, output_type)
-            if exit_msg == 'NOFILE':
-                _, exit_code = save_output_folder_files(output_folder,
-                                                        cwd, alm_prefix_node)
-                return self.exit_codes.ERROR_OUTPUT_FCS_MISSING
-            self.out(key, output_data)
-
-            self.out('results', Dict(dict=result))
+            if filename in output_folder.list_object_names():
+                with output_folder.open(filename, "rb") as handle:
+                    output_data = SinglefileData(handle)
+                self.out(key, output_data)

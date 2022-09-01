@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from aiida.orm import Str, Dict, List
-from aiida.engine import ToContext
 from aiida.plugins import DataFactory
 from aiida.common.folders import Folder
 from aiida.parsers.parser import Parser
@@ -22,8 +21,6 @@ import os
 
 from aiida.common.exceptions import InputValidationError
 
-from ase import io
-from ..io.lammps_support import write_lammps_data
 from ..io.aiida_support import save_output_folder_files, folder_prepare_object
 from ..common.base import alamodeBaseCalcjob
 
@@ -41,6 +38,9 @@ class extractCalcJob(alamodeBaseCalcjob):
 
     Specify offset = SinglefileData if there is. offset = Str means no file.
     You can add additional options by 'options' as List, where the files are assumed to be in the cwd directory.
+
+    If 'cwd' is given. The retrieved files will be saved in the directory specified by 'cwd'.
+
     """
     _WITHMPI = True
     _CWD = ""
@@ -54,8 +54,8 @@ class extractCalcJob(alamodeBaseCalcjob):
         # spec.input("structure_org_filename", valid_type=Str)
         spec.input("displacement_and_forces", valid_type=Dict,
                    help='displacement and focrces')
-        spec.input("cwd", valid_type=Str,
-                   default=lambda: Str(cls._CWD), help='directory where results are saved.')
+        spec.input("cwd", valid_type=Str, required=False,
+                   help='directory where results are saved.')
         spec.input("prefix", valid_type=Str, help='string added to filenames')
         spec.input("offset", valid_type=(Str, SinglefileData), default=lambda: Str(""),
                    help='offset force file.')
@@ -71,7 +71,6 @@ class extractCalcJob(alamodeBaseCalcjob):
         spec.output('dfset', valid_type=List)
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
-        cwd = self.inputs.cwd.value
 
         displacement_and_forces = list(
             self.inputs.displacement_and_forces.get_dict().items())
@@ -87,36 +86,20 @@ class extractCalcJob(alamodeBaseCalcjob):
                 handle.write(_content)
         # Should I write in the cwd also to examine them before running?
 
-        atoms = self.inputs.structure_org.get_ase()
         structure_org_filename = "structure_org.in"
 
-        if False:
-            if format_ == "LAMMPS":
-                style = 'atomic'
-                with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                    write_lammps_data(
-                        handle, atoms, atom_style=style, force_skew=True)
-            elif format_ == "QE":
-                with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                    io.write(handle, style="espresso-in")
-            elif format_ == "VASP":
-                with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                    io.write(handle, style="vasp")
-            else:
-                raise InputValidationError(f'unknown format. format={self.format.value}')
-        else:
-            try:
-                folder_prepare_object(folder, self.inputs.structure_org, actions=[StructureData],
-                                      filename="structure_org.in", format=format_)
-            except ValueError as err:
-                raise InputValidationError(str(err))
-            except TypeError as err:
-                raise InputValidationError(str(err))
+        try:
+            folder_prepare_object(folder, self.inputs.structure_org, actions=[StructureData],
+                                  filename="structure_org.in", format=format_)
+        except ValueError as err:
+            raise InputValidationError(str(err))
+        except TypeError as err:
+            raise InputValidationError(str(err))
 
         offset_file = self.inputs.offset
         if isinstance(offset_file, SinglefileData):
             _content = offset_file.get_object_content()
-            filename = offset_file.list_object_names()[0]
+            filename = offset_file.filename
             with folder.open(filename, "w", encoding='utf8') as handle:
                 handle.write(_content)
 
@@ -125,7 +108,7 @@ class extractCalcJob(alamodeBaseCalcjob):
         codeinfo.code_uuid = self.inputs.code.uuid
         codeinfo.cmdline_params = [f"--{format_}", f"{structure_org_filename}"]
         if isinstance(offset_file, SinglefileData):
-            _filename = offset_file.list_object_names()[0]
+            _filename = offset_file.filename
             codeinfo.cmdline_params.extend(["--offset", _filename])
         options = self.inputs.options.get_list()
         if len(options) > 0:
@@ -143,7 +126,7 @@ class extractCalcJob(alamodeBaseCalcjob):
                          "_aiidasubmit.sh", structure_org_filename]
         pattern_files.extend(filename_list)
         if isinstance(offset_file, SinglefileData):
-            filename = offset_file.list_object_names()[0]
+            filename = offset_file.filename
             pattern_files.append(filename)
 
         calcinfo.retrieve_list = pattern_files
@@ -155,7 +138,11 @@ class extract_ParseJob(Parser):
 
     def parse(self, **kwargs):
 
-        cwd = self.node.inputs.cwd.value
+        _cwd = ""
+        if "cwd" in self.node.inputs:
+            _cwd = self.node.inputs.cwd.value
+        cwd = _cwd
+
         prefix = self.node.inputs.prefix.value
 
         if len(cwd) > 0:
@@ -166,17 +153,12 @@ class extract_ParseJob(Parser):
         except Exception:
             return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
-        if False:
-            if len(cwd) > 0:
-                for filename in output_folder.list_object_names():
-                    _content = output_folder.get_object_content(filename)
-                    target_path = os.path.join(cwd, filename)
-                    with open(target_path, "w") as f:
-                        f.write(_content)
-        else:
-            conversion_table = save_output_folder_files(output_folder, cwd, prefix)
+        _, _ = save_output_folder_files(output_folder, cwd, prefix)
 
         filename = self.node.get_option('output_filename')
-        _content = output_folder.get_object_content(filename).splitlines()
+        if filename in output_folder.list_object_names():
+            _content = output_folder.get_object_content(filename).splitlines()
+        else:
+            return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
 
         self.out('dfset', List(list=_content))

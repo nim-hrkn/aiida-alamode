@@ -11,8 +11,6 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from alamode import plotdos
-from alamode import plotband
 from aiida.orm import Str
 
 from aiida.engine import calcfunction, WorkChain
@@ -62,6 +60,7 @@ def make_pattern_files(displacement_patterns: list, cwd: str, filename_template:
 def _make_phband_figure(files,  unitname: str = "kayser",
                         normalize_xaxis=False, print_key=False,
                         tight_layout=True, filename: str = None):
+    from ..alamode.plotband import preprocess_data, run_plot
 
     class _Options:
         emax = None
@@ -71,12 +70,12 @@ def _make_phband_figure(files,  unitname: str = "kayser",
     options = _Options()
 
     nax, xticks_ax, xticklabels_ax, xmin_ax, xmax_ax, ymin, ymax, \
-        data_merged_ax = plotband.preprocess_data(
+        data_merged_ax = preprocess_data(
             files, unitname, normalize_xaxis)
 
-    plotband.run_plot(files, nax, xticks_ax, xticklabels_ax,
-                      xmin_ax, xmax_ax, ymin, ymax, data_merged_ax,
-                      unitname, options.print_key, show=False)
+    run_plot(files, nax, xticks_ax, xticklabels_ax,
+             xmin_ax, xmax_ax, ymin, ymax, data_merged_ax,
+             unitname, options.print_key, show=False)
     if tight_layout:
         plt.tight_layout()
     plt.savefig(filename)
@@ -93,6 +92,10 @@ def _make_band_file(band_filenames: (Str, List, SinglefileData), cwd: Str,
 
     if isinstance(band_filenames, SinglefileData):
         _file = band_filenames.list_object_names()[0]
+        _content = band_filenames.get_content()
+        _path = os.path.join(cwd, _file)
+        with open(_path, "w") as handle:
+            handle.write(_content)
         files = [_file]
     elif isinstance(band_filenames, List):
         files = band_filenames.get_list()
@@ -116,6 +119,12 @@ class PhbandWorkChain(WorkChain):
     Phonon band workchain.
 
     band_filenames should support valid_type (SinglefileData, FolderData).
+
+    cwd must be supplied because the external alamode python script will be executed.
+    External alamode python scripts are not integrated, as they will change with version upgrades.
+
+    band_file must be absolute full path if they are Str or List.
+
     """
     _UNITNAME_DEFAULT = "kayser"
     _NORDER = 1
@@ -147,7 +156,9 @@ class PhbandWorkChain(WorkChain):
 
 def _make_phdos_figure(files, unitname="kayser", print_pdos=False,
                        print_key=False, filename: str = None):
-    plotdos.run_plot(files, unitname, print_pdos, print_key, show=False)
+    from ..alamode.plotdos import run_plot
+
+    run_plot(files, unitname, print_pdos, print_key, show=False)
     plt.tight_layout()
     plt.savefig(filename)
     plt.close()
@@ -158,14 +169,19 @@ def _make_phdos_figure(files, unitname="kayser", print_pdos=False,
 def _make_dos_file(dos_filenames: (Str, List, SinglefileData),
                    cwd: Str, prefix: Str,
                    img_filename: Str, unitname: Str):
+    cwd = cwd.value
+    os.makedirs(cwd, exist_ok=True)
+
     if isinstance(dos_filenames, SinglefileData):
-        _files = dos_filenames.list_object_names()
+        _filename = dos_filenames.list_object_names()[0]
+        _content = dos_filenames.get_content()
+        with open(os.path.join(cwd, _filename), "w") as handle:
+            handle.write(_content)
+        _files = [_filename]
     elif isinstance(dos_filenames, List):
         _files = dos_filenames.get_list()
     else:
         _files = [dos_filenames.value]
-    cwd = cwd.value
-    os.makedirs(cwd, exist_ok=True)
 
     files = []
     for _file in _files:
@@ -255,6 +271,8 @@ def thermo_load_data(filename: str = None, content: str = None, fmt: str = "df")
 def _make_thermo_figure(thermo_file: (Str, SinglefileData), cwd: Str, prefix: Str,
                         img_filename: Str):
     cwd = cwd.value
+    os.makedirs(cwd, exist_ok=True)
+
     if isinstance(thermo_file, SinglefileData):
         _content = thermo_file.get_content()
     elif isinstance(thermo_file, Str):

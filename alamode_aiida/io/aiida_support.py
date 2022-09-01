@@ -87,14 +87,12 @@ def folder_prepare_object(folder, target,
         atoms = target.get_ase()
         if isinstance(filename, Str):
             filename = filename.value
-        print("filename", filename)
 
         if filename is None:
             raise ValueError("filename is None")
         if len(filename) == 0:
             raise ValueError("len(filename)==0")
-        print("cwd", cwd)
-        if cwd is not None and len(cwd) == 0:
+        if cwd is not None and len(cwd) > 0:
             # write into the cwd and then folder.
             target_filepath = os.path.join(cwd, filename)
             if format is None:
@@ -147,22 +145,37 @@ def save_output_folder_files(output_folder, cwd: (Str, str), prefix: (Str, str),
         dict: table of filename -> filename in the cwd directory.
         bool: True always.
     """
-    if isinstance(cwd, Str):
-        cwd = cwd.value
-    if isinstance(prefix, Str):
-        prefix = prefix.value
+
+    _cwd = ""
+    if cwd is not None:
+        if isinstance(cwd, Str):
+            _cwd = cwd.value
+        elif isinstance(cwd, str):
+            _cwd = cwd
+    cwd = _cwd
+
+    print(f"save_output_folder_files: cwd={cwd}")
+
+    _prefix = prefix
+    if prefix is not None:
+        if isinstance(prefix, Str):
+            _prefix = prefix.value
+    prefix = _prefix
 
     name_convension = {}
     if len(cwd) > 0:
-
         os.makedirs(cwd, exist_ok=True)
         # save all the files in to the cwd directory.
         for filename in output_folder.list_object_names():
             if filename not in except_list:
                 _content = output_folder.get_object_content(filename)
-                name_convension[filename] = prefix+"_"+filename
-                filename = prefix+"_"+filename
-                target_path = os.path.join(cwd, filename)
+                if len(prefix) > 0:
+                    filename_save = prefix+"_"+filename
+                else:
+                    filename_save = filename
+                name_convension[filename] = filename_save
+                target_path = os.path.join(cwd, filename_save)
+
                 with open(target_path, "w") as f:
                     f.write(_content)
 

@@ -26,6 +26,7 @@ from ..io.alm_input import make_alm_in, atoms_to_alm_in, make_alm_kpoint
 from ..io.aiida_support import folder_prepare_object, save_output_folder_files
 from ..common.base import alamodeBaseCalcjob
 
+
 AU2ANG = 0.529177
 
 
@@ -37,6 +38,18 @@ ArrayData = DataFactory('array')
 
 
 class anphon_CalcJob(alamodeBaseCalcjob):
+    """
+    anphon.
+
+    mode can be 'phonons' and 'RTA'.
+
+    for mode=='phonons', phonons_mode can be 'band' and 'dos'.
+
+    Default k-points are [20,20,20] for dos.
+
+    If 'cwd' is given. The retrieved files will be saved in the directory specified by 'cwd'.
+
+    """
     _WITHMPI = False
     _NORDER = 1  # dummy
     _PREFIX_DEFAULT = "alamode"
@@ -55,7 +68,7 @@ class anphon_CalcJob(alamodeBaseCalcjob):
                    help='primitive structure.')
         spec.input("prefix", valid_type=Str,
                    default=lambda: Str(cls._PREFIX_DEFAULT), help='string added to filename.')
-        spec.input("cwd", valid_type=Str,
+        spec.input("cwd", valid_type=Str, required=False,
                    help='directory where results are saved.')
         spec.input('norder', valid_type=Int, default=lambda: Int(
             cls._NORDER), help='1 (harmonic) or 2 (cubic)')
@@ -97,26 +110,14 @@ class anphon_CalcJob(alamodeBaseCalcjob):
         if mode == "phonons":
 
             # copy dfset_filename
-            if False:
-                if isinstance(self.inputs.fcsxml, List):
-                    fcsxml_filename = self._FCS_FILENAME
-                    with folder.open(fcsxml_filename,  "w", encoding='utf8') as f:
-                        f.write("\n".join(self.inputs.fcsxml.get_list()))
-                elif isinstance(self.inputs.fcsxml, SinglefileData):
-                    fcsxml_filename = self.inputs.fcsxml.list_object_names()[0]
-                    with folder.open(fcsxml_filename,  "w", encoding='utf8') as f:
-                        f.write(self.inputs.fcsxml.get_content())
-                else:
-                    raise ValueError("unknown instance in self.inputs.fcsxml. type=",
-                                     type(self.inputs.fcsxml))
-            else:
-                try:
-                    fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml,
-                                                            filename=self._FCS_FILENAME, actions=(SinglefileData, List))
-                except ValueError as err:
-                    raise InputValidationError(str(err))
-                except TypeError as err:
-                    raise InputValidationError(str(err))
+
+            try:
+                fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml,
+                                                        filename=self._FCS_FILENAME, actions=(SinglefileData, List))
+            except ValueError as err:
+                raise InputValidationError(str(err))
+            except TypeError as err:
+                raise InputValidationError(str(err))
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -167,7 +168,7 @@ class anphon_CalcJob(alamodeBaseCalcjob):
             calcinfo = CalcInfo()
             calcinfo.codes_info = [codeinfo]
 
-            retrieve_list = [self.options.input_filename,
+            retrieve_list = ['_aiidasubmit.sh', self.options.input_filename,
                              self.options.output_filename]
             if phonons_mode == "band":
                 for ext in ["bands"]:
@@ -183,27 +184,14 @@ class anphon_CalcJob(alamodeBaseCalcjob):
 
         elif mode == "RTA":
             fcsxml = self.inputs.fcsxml
-            if False:
-                if isinstance(fcsxml, List):
-                    # copy dfset_filename
-                    target_filename = f'{alm_prefix_value}_RTA.xml'
-                    with folder.open(target_filename, "w", encoding='utf8') as f:
-                        f.write("\n".join(fcsxml.get_list()))
-                elif isinstance(fcsxml, SinglefileData):
-                    target_filename = fcsxml.list_object_names()[0]
-                    with folder.open(target_filename, "w", encoding='utf8') as f:
-                        f.write(fcsxml.get_content())
-                else:
-                    raise ValueError("unknown instance in self.inputs.fcsxml. type=",
-                                     type(self.inputs.fcsxml))
-            else:
-                try:
-                    target_filename = folder_prepare_object(folder, fcsxml, actions=(SinglefileData, List),
-                                                            filename=f'{alm_prefix_value}_RTA.xml')
-                except ValueError as err:
-                    raise InputValidationError(str(err))
-                except TypeError as err:
-                    raise InputValidationError(str(err))
+
+            try:
+                target_filename = folder_prepare_object(folder, fcsxml, actions=(SinglefileData, List),
+                                                        filename=f'{alm_prefix_value}_RTA.xml')
+            except ValueError as err:
+                raise InputValidationError(str(err))
+            except TypeError as err:
+                raise InputValidationError(str(err))
 
             # make inputfile
             structure = self.inputs.structure.get_ase()
@@ -257,7 +245,7 @@ class anphon_CalcJob(alamodeBaseCalcjob):
             calcinfo = CalcInfo()
             calcinfo.codes_info = [codeinfo]
 
-            retrieve_list = [self.options.input_filename,
+            retrieve_list = ['_aiidasubmit.sh', self.options.input_filename,
                              self.options.output_filename]
 
             if kappa_spec_value == 0:
@@ -368,10 +356,12 @@ class anphon_ParseJob(Parser):
 
     def parse(self, **kwargs):
         mode = self.node.inputs.mode.value
-        prefix = self.node.inputs.prefix.value
         alm_prefix_node = self.node.inputs.prefix
 
-        cwd = self.node.inputs.cwd.value
+        _cwd = ""
+        if "cwd" in self.node.inputs:
+            _cwd = self.node.inputs.cwd.value
+        cwd = _cwd
         if len(cwd) > 0:
             os.makedirs(cwd, exist_ok=True)
 
@@ -381,13 +371,14 @@ class anphon_ParseJob(Parser):
             except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
 
+            _, exit_code = save_output_folder_files(output_folder,
+                                                    cwd, alm_prefix_node)
+
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result = _parse_anphon_RTA(handle=handle)
                     except ValueError:
-                        _, exit_code = save_output_folder_files(output_folder,
-                                                                cwd, alm_prefix_node)
                         return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
@@ -396,9 +387,11 @@ class anphon_ParseJob(Parser):
 
             kappa_spec_value = self.node.inputs.kappa_spec.value
             if kappa_spec_value == 0:
-                kappa_spec_str = ""
+                # kappa_spec_str = ""
+                pass
             elif kappa_spec_value == 1:
-                kappa_spec_str = "_spec"
+                # kappa_spec_str = "_spec"
+                pass
             else:
                 # This can't happen because it is checked in calcjob.
                 return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
@@ -406,20 +399,10 @@ class anphon_ParseJob(Parser):
             filename = self.node.get_option('input_filename')
             if filename not in output_folder.list_object_names():
                 raise self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
-            _content = output_folder.get_object_content(filename)
-            filename = f"{prefix}_anphon_{mode}{kappa_spec_str}.in"
-            target_path = os.path.join(cwd, filename)
-            with open(target_path, "w") as f:
-                f.write(_content)
 
             filename = self.node.get_option('output_filename')
             if filename not in output_folder.list_object_names():
                 raise self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
-            _content = output_folder.get_object_content(filename)
-            filename = f"{prefix}_anphon_{mode}{kappa_spec_str}.out"
-            target_path = os.path.join(cwd, filename)
-            with open(target_path, "w") as f:
-                f.write(_content)
 
             if kappa_spec_value == 0:
                 label_list = ["result_filename", "kl_filename"]
@@ -432,12 +415,9 @@ class anphon_ParseJob(Parser):
 
             for label in label_list:
                 filename = result[label]
-                _content = output_folder.get_object_content(filename)
-                target_path = os.path.join(cwd, filename)
-                with open(target_path, "w") as f:
-                    f.write(_content)
-                self.out(label.replace("filename", "file"),
-                         SinglefileData(target_path))
+                with output_folder.open(filename, "rb") as handle:
+                    self.out(label.replace("filename", "file"),
+                             SinglefileData(handle))
 
             self.out('results', Dict(dict=result))
 
@@ -446,21 +426,25 @@ class anphon_ParseJob(Parser):
                 output_folder = self.retrieved
             except Exception:
                 return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
+            _, exit_code = save_output_folder_files(output_folder,
+                                                    cwd, alm_prefix_node)
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
                     try:
                         result = _parse_anphon(handle=handle)
                     except ValueError:
-                        _, exit_code = save_output_folder_files(output_folder,
-                                                                cwd, alm_prefix_node)
                         return self.exit_codes.ERROR_INVALID_OUTPUT
             except OSError:
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
 
-            phonons_mode = self.node.inputs.phonons_mode.value
+            # phband, phdos
+            for label, filename in result.items():
+                with output_folder.open(filename, "rb") as handle:
+                    self.out(label.replace("filename", "file"),
+                             SinglefileData(handle))
 
             if len(cwd) > 0:
                 filename = self.node.get_option('input_filename')
@@ -468,29 +452,11 @@ class anphon_ParseJob(Parser):
                     _, exit_code = save_output_folder_files(output_folder,
                                                             cwd, alm_prefix_node)
                     raise self.exit_codes.ERROR_OUTPUT_STDIN_MISSING
-                _content = output_folder.get_object_content(filename)
-                filename = f"{prefix}_anphon_{mode}_{phonons_mode}.in"
-                target_path = os.path.join(cwd, filename)
-                with open(target_path, "w") as f:
-                    f.write(_content)
 
                 filename = self.node.get_option('output_filename')
                 if filename not in output_folder.list_object_names():
                     _, exit_code = save_output_folder_files(output_folder,
                                                             cwd, alm_prefix_node)
                     raise self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
-                _content = output_folder.get_object_content(filename)
-                filename = f"{prefix}_anphon_{mode}_{phonons_mode}.out"
-                target_path = os.path.join(cwd, filename)
-                with open(target_path, "w") as f:
-                    f.write(_content)
-
-                for label, filename in result.items():
-                    _content = output_folder.get_object_content(filename)
-                    target_path = os.path.join(cwd, filename)
-                    with open(target_path, "w") as f:
-                        f.write(_content)
-                    self.out(label.replace("filename", "file"),
-                             SinglefileData(target_path))
 
             self.out('results', Dict(dict=result))

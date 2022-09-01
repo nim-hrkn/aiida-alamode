@@ -282,6 +282,7 @@ def run_plot(files, nax, xticks_ax, xticklabels_ax, xmin_ax, xmax_ax, ymin, ymax
 
     if show:
         plt.show()
+    return gs
 
 
 if __name__ == '__main__':
@@ -323,5 +324,5 @@ if __name__ == '__main__':
         data_merged_ax = preprocess_data(
             files, options.unitname, options.normalize_xaxis, options.emin, options.emax)
 
-    run_plot(files, nax, xticks_ax, xticklabels_ax,
-             xmin_ax, xmax_ax, ymin, ymax, data_merged_ax, options.unitname, options.printkey)
+    _ = run_plot(files, nax, xticks_ax, xticklabels_ax,
+             xmin_ax, xmax_ax, ymin, ymax, data_merged_ax, options.unitname, options.print_key)

@@ -131,8 +131,7 @@ class AlmPathMaker(AlmBasePrefixMaker):
     def __init__(self, **kwargs):
         self._order = self._ORDER
         super().__init__(**kwargs)
-        # os.makedirs(self.prefix, exist_ok=True)
-        # print("make", self.prefix)
+
 
 
 def make_alm_uniform_kmesh(atoms: Atoms, kspacing: float = 0.05, koffset=(0, 0, 0), n=3):
