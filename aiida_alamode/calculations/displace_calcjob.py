@@ -24,7 +24,7 @@ from aiida.common.exceptions import InputValidationError
 
 # from alamode.extract import check_options, run_parse
 
-from ..common.base import alamodeBaseCalcjob
+from ..common.base import AlamodeBaseCalculation
 from ..io.lammps_support import write_lammps_data
 from ..io.ase_support import load_atoms_bare
 from ..io.displacement import displacemenpattern_to_lines
@@ -231,7 +231,7 @@ if False:
             return calcinfo
 
 
-class displace_pf_CalcJob(alamodeBaseCalcjob):
+class DisplacePfCalculation(AlamodeBaseCalculation):
     """ displace.py -pf
 
     The pattern files are generated as f"{prefix}.{pattern_file_ext}", where pattern_file_ext is 'harmonic' or 'cubic.
@@ -343,7 +343,7 @@ class displace_pf_CalcJob(alamodeBaseCalcjob):
         return calcinfo
 
 
-class displace_random_CalcJob(alamodeBaseCalcjob):
+class DisplaceRandomCalculation(AlamodeBaseCalculation):
     """ displace.py --random
 
     The displacement files are generated as f"{prefix}{counter}.POSCAR" and so on.
@@ -387,7 +387,7 @@ class displace_random_CalcJob(alamodeBaseCalcjob):
             'num_machines': 1, 'num_mpiprocs_per_machine': 1}
 
         spec.output('results', valid_type=Dict)
-        # spec.output('dispfile_folder', valid_type=FolderData) # necessary? 
+        # spec.output('dispfile_folder', valid_type=FolderData) # necessary?
         spec.output('displaced_structures', valid_type=TrajectoryData)
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
@@ -474,7 +474,7 @@ def _read_structure(structure_filepath, format, style=None):
     return atoms
 
 
-class displace_ParseJob(Parser):
+class DisplaceParser(Parser):
 
     def parse(self, **kwargs):
         """_target_filename = f"displace_{mode}_{prefix}.out"

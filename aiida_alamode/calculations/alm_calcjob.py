@@ -21,7 +21,7 @@ from aiida.plugins import DataFactory
 import os
 from fnmatch import fnmatch
 
-from ..common.base import alamodeBaseCalcjob
+from ..common.base import AlamodeBaseCalculation
 
 from ..io.aiida_support import folder_prepare_object, save_output_folder_files
 
@@ -224,7 +224,7 @@ def _parse_alm_opt(handle):
     return results
 
 
-class almBaseCalcJob(alamodeBaseCalcjob):
+class AlmBaseCalculation(AlamodeBaseCalculation):
     """
     write files to the cwd directory if cwd is not "".
 
@@ -262,7 +262,7 @@ class almBaseCalcJob(alamodeBaseCalcjob):
         spec.output('results', valid_type=Dict)
 
 
-class almSuggestCalcJob(almBaseCalcJob):
+class AlmSuggestCalculation(AlmBaseCalculation):
     """alm mode="suggest"
 
     pattern files are saved as f"{prefix}.pattern_*".
@@ -282,13 +282,13 @@ class almSuggestCalcJob(almBaseCalcJob):
     @classmethod
     def define(cls, spec):
         super().define(spec)
-        spec.expose_inputs(almBaseCalcJob)
+        spec.expose_inputs(AlmBaseCalculation)
         spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE),
                    help='mode of alm=\'suggest\'')
 
         spec.inputs['metadata']['options']['input_filename'].default = 'alm_suggest.in'
         spec.inputs['metadata']['options']['output_filename'].default = 'alm_suggest.out'
-        spec.expose_outputs(almBaseCalcJob)
+        spec.expose_outputs(AlmBaseCalculation)
         spec.output('pattern', valid_type=List, help='pattern of displacement')
 
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
@@ -332,7 +332,7 @@ class almSuggestCalcJob(almBaseCalcJob):
         return calcinfo
 
 
-class almOptCalcJob(almBaseCalcJob):
+class AlmOptCalculation(AlmBaseCalculation):
     """alm mode="opt"
 
     default input filename: alm_opt.in
@@ -354,7 +354,7 @@ class almOptCalcJob(almBaseCalcJob):
     @classmethod
     def define(cls, spec):
         super().define(spec)
-        spec.expose_inputs(almBaseCalcJob)
+        spec.expose_inputs(AlmBaseCalculation)
         spec.input('mode', valid_type=Str, default=lambda: Str(cls._MODE),
                    help='mode of alm=\'opt\'')
         spec.input('dfset', valid_type=List, help='DFSET')
@@ -363,7 +363,7 @@ class almOptCalcJob(almBaseCalcJob):
 
         spec.inputs['metadata']['options']['input_filename'].default = 'alm_opt.in'
         spec.inputs['metadata']['options']['output_filename'].default = 'alm_opt.out'
-        spec.expose_outputs(almBaseCalcJob)
+        spec.expose_outputs(AlmBaseCalculation)
         spec.output('input_ANPHON', valid_type=(List, SinglefileData), help='ANPHON file')
         spec.output('force_constants', valid_type=(List, SinglefileData), help='force constants.')
 
@@ -429,7 +429,7 @@ class almOptCalcJob(almBaseCalcJob):
         return calcinfo
 
 
-class alm_ParseJob(Parser):
+class AlmParser(Parser):
 
     def parse(self, **kwargs):
         mode = self.node.inputs.mode.value

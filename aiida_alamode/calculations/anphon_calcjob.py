@@ -24,7 +24,7 @@ from aiida.common.exceptions import InputValidationError
 
 from ..io.alm_input import make_alm_in, atoms_to_alm_in, make_alm_kpoint
 from ..io.aiida_support import folder_prepare_object, save_output_folder_files
-from ..common.base import alamodeBaseCalcjob
+from ..common.base import AlamodeBaseCalculation
 
 
 AU2ANG = 0.529177
@@ -37,7 +37,7 @@ List = DataFactory('list')
 ArrayData = DataFactory('array')
 
 
-class anphon_CalcJob(alamodeBaseCalcjob):
+class AnphonCalculation(AlamodeBaseCalculation):
     """
     anphon.
 
@@ -352,7 +352,7 @@ def _parse_anphon_RTA(handle):
         raise ValueError("failed to get result.")
 
 
-class anphon_ParseJob(Parser):
+class AnphonParser(Parser):
 
     def parse(self, **kwargs):
         mode = self.node.inputs.mode.value

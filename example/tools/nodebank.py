@@ -3,9 +3,10 @@ import os
 from aiida.orm import load_node
 
 from .aiida_support import wait_for_node_finished
-from aiida.engine import calcfunction, workfunction, submit, run, run_get_node
+from aiida.engine import submit
 
 from datetime import datetime
+
 
 class NodeBank:
     """実行するごとにノードをstoreせずに過去のノードをloadするために用いる。
@@ -39,7 +40,7 @@ class NodeBank:
         with open(filepath, "w") as f:
             json.dump(self.dic, f)
 
-    def load(self, label: str, raise_error: bool=True):
+    def load(self, label: str, raise_error: bool = True):
 
         self.load_json()
         if label in list(self.dic.keys()):
@@ -88,9 +89,9 @@ class NodeBank:
             print(g_alm_suggest_future)
             wait_for_node_finished(g_alm_suggest_future, sec)
             if g_alm_suggest_future.is_finished_ok:
-                self.dump(key, g_alm_suggest_future)        
+                self.dump(key, g_alm_suggest_future)
             else:
-                raise 
+                raise
         endtime = datetime.now()
         print(endtime-starttime)
         return g_alm_suggest_future
@@ -98,7 +99,7 @@ class NodeBank:
     def load_workchain_or_wait_for_node(self, key, workchain, inputs, sec=2):
         starttime = datetime.now()
 
-        lammps_all = self.load(key,raise_error=False )
+        lammps_all = self.load(key, raise_error=False)
         if lammps_all is None:
             lammps_all = submit(workchain, **inputs)
             wait_for_node_finished(lammps_all, sec)

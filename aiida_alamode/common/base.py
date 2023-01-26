@@ -14,12 +14,12 @@
 from aiida.engine import CalcJob
 
 
-class alamodeBaseCalcjob(CalcJob):
+class AlamodeBaseCalculation(CalcJob):
     """base class of alamode for error handling.
     """
     @classmethod
     def define(cls, spec):
-        super(alamodeBaseCalcjob, cls).define(spec)
+        super(AlamodeBaseCalculation, cls).define(spec)
 
         spec.exit_code(200, "ERROR_NO_RETRIEVED_FOLDER",
                        message="The retrieved folder data node could not be accessed.")

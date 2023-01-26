@@ -26,7 +26,7 @@ from ..alamode.analyze_phonons import print_temperature_dep_lifetime
 from ..alamode.analyze_phonons import print_lifetime_at_given_temperature
 from ..alamode.analyze_phonons import print_cumulative_thermal_conductivity
 
-from ..common.base import alamodeBaseCalcjob
+from ..common.base import AlamodeBaseCalculation
 from ..io import parse_analyze_phonons_kappa_boundary, parse_analyze_phonons_tau_at_temperature, parse_analyze_phonons_cumulative
 
 
@@ -34,7 +34,7 @@ SinglefileData = DataFactory('singlefile')
 ArrayData = DataFactory("array")
 
 
-class analzePhononOptions(object):
+class AnalzePhononOptions(object):
     def __init__(self, calc: str, **kwargs):
         self.options = {'temp': None, 'mode': None, 'kpoint': None,
                         'calc': calc, 'isotope': None, 'average_gamma': True,
@@ -64,10 +64,10 @@ class analzePhononOptions(object):
 _OUTPUT_FILENAME_DEFAULT = "None"
 
 
-class analyze_phonons_CalcJob(alamodeBaseCalcjob):
+class AnalyzePhononsCalculation(AlamodeBaseCalculation):
     """_summary_
 
-    analyze_anonons.
+    analyze_pnonons.
 
     calc can be 'kappa_boundary', 'tau' and 'cumulative'.
 
@@ -113,7 +113,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
             result_filename = self.inputs.file_result.filename
 
             try:
-                param = analzePhononOptions(
+                param = AnalzePhononOptions(
                     calc_value, **self.inputs.param.get_dict())
             except ValueError as err:
                 raise InputValidationError(str(err))
@@ -144,7 +144,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
             result_filename = self.inputs.file_result.filename
 
             try:
-                param = analzePhononOptions(
+                param = AnalzePhononOptions(
                     calc_value, **self.inputs.param.get_dict())
             except ValueError as err:
                 raise InputValidationError(str(err))
@@ -180,7 +180,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
             result_filename = self.inputs.file_result.filename
 
             try:
-                param = analzePhononOptions(
+                param = AnalzePhononOptions(
                     calc_value, **self.inputs.param.get_dict())
             except ValueError as err:
                 raise InputValidationError(str(err))
@@ -209,7 +209,7 @@ class analyze_phonons_CalcJob(alamodeBaseCalcjob):
             raise ValueError(f"unknown calc={calc_value}.")
 
 
-class analyze_phonons_ParseJob(Parser):
+class AnalyzePhononsParser(Parser):
 
     def parse(self, **kwargs):
         calc = self.node.inputs.calc.value

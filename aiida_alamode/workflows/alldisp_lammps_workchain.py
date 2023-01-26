@@ -162,7 +162,7 @@ def _change_lammps_section(cwd,
         f.write("\n".join(lines))
 
 
-class force_simulator_lammps_WorkChain(WorkChain):
+class ForcesLammpsWorkChain(WorkChain):
     """parallen execution of lammps.force
     """
     _CWD = ""

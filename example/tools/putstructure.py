@@ -1,47 +1,25 @@
 
-from aiida.manage.configuration import get_profile
 
-from aiida.common.datastructures import CalcInfo, CodeInfo
-from aiida.common.folders import Folder
+from aiida.engine import WorkChain
+from aiida.engine import calcfunction
 
-from aiida.engine import CalcJob, WorkChain
-from aiida.engine import calcfunction, workfunction, submit, run
+from aiida.plugins import DataFactory
 
-from aiida.plugins import DataFactory, WorkflowFactory
 
-from aiida.parsers.parser import Parser
-from aiida.orm import Code
-from aiida.orm import load_code, load_node
-from aiida.orm import Str, Dict, Float, Int
-from aiida.orm import QueryBuilder
+from aiida.orm import Str, Float
 
-import aiida
 
 # from alamode_aiida.io import load_anphon_kl, load_anphon_kl_spec
-from ase.io.espresso import write_espresso_in
-from ase.io.lammpsdata import read_lammps_data
+
 from ase.build import make_supercell
-from ase import Atom, Atoms
+from ase import Atoms
 import ase
 
-from itertools import combinations_with_replacement
-import numpy as np
 import os
-import subprocess
-import shutil
-import re
-from time import sleep
 import spglib
 
 
-from os.path import expanduser
-
-from traitlets import default
-
-from .nodebank import NodeBank
-from .aiida_support import wait_for_node_finished
-from alamode_aiida.io import load_atoms
-from alamode_aiida.io import write_lammps_data
+from aiida_alamode.io import write_lammps_data
 
 
 # load types

@@ -22,7 +22,7 @@ import os
 from aiida.common.exceptions import InputValidationError
 
 from ..io.aiida_support import save_output_folder_files, folder_prepare_object
-from ..common.base import alamodeBaseCalcjob
+from ..common.base import AlamodeBaseCalculation
 
 
 # load types
@@ -33,7 +33,7 @@ ArrayData = DataFactory('array')
 TrajectoryData = DataFactory('array.trajectory')
 
 
-class extractCalcJob(alamodeBaseCalcjob):
+class ExtractCalculation(AlamodeBaseCalculation):
     """ extract.py
 
     Specify offset = SinglefileData if there is. offset = Str means no file.
@@ -134,7 +134,7 @@ class extractCalcJob(alamodeBaseCalcjob):
         return calcinfo
 
 
-class extract_ParseJob(Parser):
+class ExtractParser(Parser):
 
     def parse(self, **kwargs):
 

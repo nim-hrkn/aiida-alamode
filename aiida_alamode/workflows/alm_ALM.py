@@ -64,7 +64,7 @@ if False:
         return folderdata
 
 
-class alm_ALM_suggest(WorkChain):
+class ALMSuggestWorkChain(WorkChain):
     """ALM.suggest()
     """
     _CWD = ""
@@ -146,7 +146,7 @@ def _dfset_to_disp_and_force(lines: list):
     return disp, force
 
 
-class alm_ALM_opt(WorkChain):
+class ALMOptWorkChain(WorkChain):
     """ALM.optimize()
     """
     _CWD = ""

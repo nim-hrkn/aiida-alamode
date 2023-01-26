@@ -3,11 +3,12 @@ import os
 import distutils
 import sys
 
+
 def wait_for_node_finished(node, sec=2):
     """submitした後に実行終了まで待つ。
 
     Args:
-        node : 
+        node (aiida.orm.Node): submitted node.
         sec (int): wait time in sec.
     """
     while True:

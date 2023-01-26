@@ -86,7 +86,7 @@ def _pack_result(**kwargs):
               for label, result in kwargs.items()]
     return List(list=result)
 
-class alldisp_pwx_WorkChain(WorkChain):
+class ForcesPwsWorkChain(WorkChain):
     _WAIT_SEC = 2
     _WORKCHAIN_KEY_FORMAT = "workchain_{}"
     _NORDER = 1
