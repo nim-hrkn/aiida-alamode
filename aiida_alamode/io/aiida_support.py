@@ -154,8 +154,6 @@ def save_output_folder_files(output_folder, cwd: (Str, str), prefix: (Str, str),
             _cwd = cwd
     cwd = _cwd
 
-    print(f"save_output_folder_files: cwd={cwd}")
-
     _prefix = prefix
     if prefix is not None:
         if isinstance(prefix, Str):

@@ -1,3 +1,5 @@
 # alamode_aiida
 
-v 0.7.2
+the latest version is v0.9_free_energy_convergence
+
+

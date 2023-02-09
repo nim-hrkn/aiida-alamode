@@ -1,21 +1,26 @@
 {
     "name" : "aiida-alamode",
-    "version" : "0.8.0",
+    "version" : "0.9.0",
     "entry_points" : {
         "aiida.workflows": [
             "alamode.force_simulator_lammps = aiida_alamode.workflows.alldisp_lammps_workchain: ForcesLammpsWorkChain",
-            "alamode.alm_suggest = aiida_alamode.workflows.alm_ALM: ALMSuggestWorkChain",
-            "alamode.alm_opt = aiida_alamode.workflows.alm_ALM: ALMOptWorkChain",
+            "alamode.ALM_suggest = aiida_alamode.workflows.alm_ALM: ALMSuggestWorkChain",
+            "alamode.ALM_opt = aiida_alamode.workflows.alm_ALM: ALMOptWorkChain",
             "alamode.phband_img = aiida_alamode.workflows.img_workchain: PhbandWorkChain",
             "alamode.phdos_img = aiida_alamode.workflows.img_workchain: PhdosWorkChain",
             "alamode.freeenergy_img = aiida_alamode.workflows.img_workchain: FreeenergyImgWorkChain",
-            "alamode.make_best_supercell = aiida_alamode.workflows.make_best_supercell_workchain: BestSupercellWorkChain"
+            "alamode.img.band_calculator = aiida_alamode.workflows.img_phononcalculation_workchain: BandImgPhononCalculatorWorkChain",
+            "alamode.img.dos_calculator = aiida_alamode.workflows.img_phononcalculation_workchain: DosImgPhononCalculatorWorkChain",
+            "alamode.img.thermo_calculator = aiida_alamode.workflows.img_phononcalculation_workchain: ThermoImgPhononCalculatorWorkChain",
+            "alamode.make_best_supercell = aiida_alamode.workflows.make_best_supercell_workchain: BestSupercellWorkChain",
+            "alamode.check_convergence_freeenergy = aiida_alamode.workflows.check_convergence_freeenergy_workchain: checkConvergenceFreeenergyWorkchain"
         ],
 	"aiida.calculations": [
 	    "alamode.lammps   = aiida_alamode.calculations.lammps_calcjob: lammps_CalcJob" ,
             "alamode.alm_suggest   = aiida_alamode.calculations.alm_calcjob: AlmSuggestCalculation",
             "alamode.alm_opt   = aiida_alamode.calculations.alm_calcjob: AlmOptCalculation",
             "alamode.anphon = aiida_alamode.calculations.anphon_calcjob: AnphonCalculation",
+            "alamode.anphon_calculator = aiida_alamode.calculations.anphon_calculator_calcjob: AnphonCalculatorCalculation",
             "alamode.displace_pf   = aiida_alamode.calculations.displace_calcjob: DisplacePfCalculation",
             "alamode.displace_random   = aiida_alamode.calculations.displace_calcjob: DisplaceRandomCalculation",
             "alamode.extract   = aiida_alamode.calculations.extract_calcjob: ExtractCalculation",
@@ -25,6 +30,7 @@
 	    "alamode.lammps  = aiida_alamode.calculations.lammps_calcjob: lammps_ParseJob" ,
             "alamode.alm   = aiida_alamode.calculations.alm_calcjob: AlmParser",
             "alamode.anphon = aiida_alamode.calculations.anphon_calcjob: AnphonParser",
+            "alamode.anphon_calculator = aiida_alamode.calculations.anphon_calculator_calcjob: AnphonCalculatorParser",
             "alamode.displace   = aiida_alamode.calculations.displace_calcjob: DisplaceParser",
             "alamode.extract   = aiida_alamode.calculations.extract_calcjob: ExtractParser",
             "alamode.analyze_phonons = aiida_alamode.calculations.analyze_calcjob: AnalyzePhononsParser"

@@ -175,6 +175,16 @@ class LammpsParser(object):
 
                 for idata in range(ndata):
                     disp = x[idata, :, :] - self._x_cartesian - disp_offset
+                    if True:
+                        # force disp vector the small magnitude assuming that the displacement is small.
+                        # change displacemeent to the fractional coordinate
+                        _disp_fracx = self._get_fractional_coordinate(disp, self._inverse_lattice_vector)
+                        # make _fracx in [-0.5,0.5).
+                        _disp_fracx += 0.5 
+                        _disp_fracx %= 1  # returns positive fractional part.. [0,1).
+                        _disp_fracx -= 0.5 # adjust the center again
+                        # convert to the cartedian coordinate again
+                        disp = np.dot(_disp_fracx, self._lattice_vector.transpose())
                     disp *= self._disp_conversion_factor
                     f = force[idata, :, :] - force_offset
                     f *= self._force_conversion_factor
@@ -403,6 +413,7 @@ class LammpsParser(object):
                             data_atom = [int(entries[0]),
                                         [float(t) for t in entries[1:4]],
                                         [float(t) for t in entries[4:]]]
+                        ret.append(data_atom)
                     elif add_flag == "element.xu":
                         if line.strip():
                             entries = line.strip().split()
@@ -410,7 +421,6 @@ class LammpsParser(object):
                             data_atom = [int(id_), 
                                         [float(t) for t in entries[1:4]],
                                         [float(t) for t in entries[4:]]]
-
                         ret.append(data_atom)
 
         # This sort is necessary since the order atoms of LAMMPS dump files

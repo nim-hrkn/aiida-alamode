@@ -66,14 +66,18 @@ class AnphonCalculation(AlamodeBaseCalculation):
         super().define(spec)
         spec.input("structure", valid_type=StructureData,
                    help='primitive structure.')
+        spec.input("super_structure", valid_type=StructureData,
+                   help='super structure.')
         spec.input("prefix", valid_type=Str,
                    default=lambda: Str(cls._PREFIX_DEFAULT), help='string added to filename.')
         spec.input("cwd", valid_type=Str, required=False,
                    help='directory where results are saved.')
         spec.input('norder', valid_type=Int, default=lambda: Int(
             cls._NORDER), help='1 (harmonic) or 2 (cubic)')
-        spec.input('fcsxml', valid_type=(SinglefileData, List),
+        spec.input('fcsxml', valid_type=(SinglefileData, List), required=False,
                    help='Probably it is input_ANPHON. It is used at norder=2.')
+        spec.input('fc', valid_type=ArrayData, required=False,
+                   help='force constant.')
         spec.input('mode', valid_type=Str, default=lambda: Str(
             cls._MODE), help='anphon mode')
         spec.input('phonons_mode', valid_type=Str,
@@ -110,14 +114,27 @@ class AnphonCalculation(AlamodeBaseCalculation):
         if mode == "phonons":
 
             # copy dfset_filename
+            if "fcsxml" in self.inputs:
+                try:
+                    fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml,
+                                                            filename=self._FCS_FILENAME, actions=(SinglefileData, List))
+                except ValueError as err:
+                    raise InputValidationError(str(err))
+                except TypeError as err:
+                    raise InputValidationError(str(err))
 
-            try:
-                fcsxml_filename = folder_prepare_object(folder, self.inputs.fcsxml,
-                                                        filename=self._FCS_FILENAME, actions=(SinglefileData, List))
-            except ValueError as err:
-                raise InputValidationError(str(err))
-            except TypeError as err:
-                raise InputValidationError(str(err))
+            superstructure = self.inputs.super_structure.get_ase()
+            
+            if 'fc' in self.inputs:
+                from fcsxml import Fcsxml
+                fcsxml = Fcsxml(superstructure.cell, superstructure.get_scaled_positions(),
+                                superstructure.numbers)
+                fc2 = self.inputs.fc.get_array('fc2')
+                fc_indices = self.inputs.fc.get_array('indices')
+                fcsxml.set_force_constants(fc2, fc_indices)
+                with folder.open(self._FCS_FILENAME, "w", encoding='utf8') as f:
+                    fcsxml.write(f)
+                fcsxml_filename = self._FCS_FILENAME
 
             # make inputfile
             structure = self.inputs.structure.get_ase()

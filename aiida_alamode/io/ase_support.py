@@ -48,12 +48,12 @@ def get_prim_conv_atoms(atoms):
     cell, scaled_positions, numbers = spglib.find_primitive(
         atoms)
     prim_structure = Atoms(cell=cell, scaled_positions=scaled_positions,
-                           numbers=numbers)
+                           numbers=numbers, pbc=atoms.pbc)
 
     cell, scaled_positions, numbers = spglib.standardize_cell(
         prim_structure)
     conv_structure = Atoms(cell=cell, scaled_positions=scaled_positions,
-                           numbers=numbers)
+                           numbers=numbers, pbc=atoms.pbc)
 
     return prim_structure, conv_structure
 

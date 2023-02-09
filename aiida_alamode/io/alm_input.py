@@ -62,7 +62,6 @@ def check_almprefixtype(value):
 
     if not flag:
         typename = type(value)
-        print(f"invalid type for value={value}")
         raise ValueError(f'invalid type in check_almprefixtype. type={typename}')
 
     return flag

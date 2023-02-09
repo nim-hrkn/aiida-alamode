@@ -6,4 +6,5 @@ from .data_loader import  load_anphon_kl, load_anphon_kl_spec
 from .lammps_support import write_lammps_data
 from .misc import zerofillStr
 from .anphon_parse import parse_analyze_phonons_kappa_boundary, parse_analyze_phonons_tau_at_temperature, parse_analyze_phonons_cumulative
+from .fcsxml import Fcsxml
 

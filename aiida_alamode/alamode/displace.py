@@ -19,12 +19,30 @@ Input structure file generator for displaced configurations.
 from __future__ import print_function
 import argparse
 import numpy as np
-from interface.VASP import VaspParser
-from interface.QE import QEParser
-from interface.xTAPP import XtappParser
-from interface.OpenMX import OpenmxParser
-from interface.LAMMPS import LammpsParser
-from GenDisplacement import AlamodeDisplace
+try:
+    from interface.VASP import VaspParser
+except ModuleNotFoundError:
+    from .interface.VASP import VaspParser
+try:
+    from interface.QE import QEParser
+except ModuleNotFoundError:
+    from .interface.QE import QEParser
+try:
+    from interface.xTAPP import XtappParser
+except ModuleNotFoundError:
+    from .interface.xTAPP import XtappParser
+try:
+    from interface.OpenMX import OpenmxParser
+except  ModuleNotFoundError:
+    from .interface.OpenMX import OpenmxParser
+try:
+    from interface.LAMMPS import LammpsParser
+except ModuleNotFoundError:
+    from .interface.LAMMPS import LammpsParser
+try:
+    from GenDisplacement import AlamodeDisplace
+except ModuleNotFoundError:
+    from .GenDisplacement import AlamodeDisplace
 
 
 def check_code_options(args):
@@ -279,6 +297,7 @@ if __name__ == '__main__':
                         help='Range of normal coordinate amplitude Q in units of amu^{1/2}*Angstrom')
 
     args = parser.parse_args()
+    print(args)
 
     if not args.print_disp_stdout:
         print("*****************************************************************")
