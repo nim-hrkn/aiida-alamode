@@ -26,10 +26,10 @@ which engine produced the forces:
     elastic : ``strain_ifc_folder`` (elastic_constants.in, strain_force.in for the anphon QHA)
 
 ASE implementations (engine: alamode-ase-runner, see engine_base.py):
-- AseForcesCalculation   entry point alamode.forces_ase   (alias alamode.mattersim)
-- AseRelaxCalculation    alamode.relax_ase                (alias alamode.mattersim_relax)
-- AseMdCalculation       alamode.md_ase                   (alias alamode.mattersim_md)
-- AseElasticCalculation  alamode.elastic_ase              (alias alamode.mattersim_elastic)
+- AseForcesCalculation   entry point alamode.forces_ase
+- AseRelaxCalculation    alamode.relax_ase
+- AseMdCalculation       alamode.md_ase
+- AseElasticCalculation  alamode.elastic_ase
 A DFT implementation would be e.g. VaspForcesCalculation (alamode.forces_vasp) with the same ``arrays`` output.
 
 The Born effective charges and the dielectric tensor are a different kind of prediction (dielectric_calcjob.py).
@@ -267,16 +267,3 @@ class AseElasticParser(AseRunnerBaseParser):
                 folderdata.put_object_from_filelike(handle, filename)
         self.out("results", Dict(dict=result))
         self.out("strain_ifc_folder", folderdata)
-
-
-
-
-# backward-compatible names
-MattersimForcesCalculation = AseForcesCalculation
-MattersimRelaxCalculation = AseRelaxCalculation
-MattersimMdCalculation = AseMdCalculation
-MattersimElasticCalculation = AseElasticCalculation
-MattersimParser = AseForcesParser
-MattersimRelaxParser = AseRelaxParser
-MattersimMdParser = AseMdParser
-MattersimElasticParser = AseElasticParser

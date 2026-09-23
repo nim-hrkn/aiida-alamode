@@ -18,7 +18,7 @@ of a cell, i.e. what anphon needs in BORNINFO for the LO-TO correction (NONANALY
 This is a different prediction from the forces (force_calcjob.py): a force calculator does not give Z*,
 and a Z* model such as SevenNet-Polar is not a force field.  Engines:
 - ASE calculators that provide ``born_effective_charges`` (SevenNet-Polar): AseBornChargesCalculation
-  (entry point alamode.bec_ase, alias alamode.mattersim_bec).  eps_inf comes from the model when it
+  (entry point alamode.bec_ase).  eps_inf comes from the model when it
   provides ``dielectric_tensor``, otherwise from the ``dielectric`` input.
 - DFT (VASP LEPSILON / LCALCEPS, Quantum ESPRESSO ph.x): a subclass of DielectricCalculatorBaseCalculation
   that parses Z* and eps_inf from the code output (e.g. VaspBornChargesCalculation, alamode.bec_vasp).
@@ -135,9 +135,3 @@ class AseBornChargesParser(AseRunnerBaseParser):
                                                 filename=AseBornChargesCalculation._BORNINFO))
         self.out("results", Dict(dict=result))
         self.out("born_effective_charges", arrays)
-
-
-
-# backward-compatible names
-MattersimBecCalculation = AseBornChargesCalculation
-MattersimBecParser = AseBornChargesParser

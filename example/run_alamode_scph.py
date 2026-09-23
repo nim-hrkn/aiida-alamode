@@ -2,7 +2,7 @@
 anharmonic IFCs from MD + random displacements + elastic-net CV, then SCPH structural optimization.
 
     relax (volume)  ->  primitive / 2x2x2 supercell  ->  harmonic IFCs (alm_suggest / displace_pf / forces / alm_opt)
-      ->  MD at T (md_ase: sampled snapshots + random 0.04 A)  ->  forces + DFSET (force_simulator_mattersim)
+      ->  MD at T (md_ase: sampled snapshots + random 0.04 A)  ->  forces + DFSET (alamode.forces)
       ->  alm cv (alm_cv: NORDER = 3, NBODY 2 3 3, LASSO, CV = 4)  ->  alm opt (L1_ALPHA of the minimum CV score)
       ->  anphon SCPH + RELAX_STR = 1 (T = TMIN..TMAX)  ->  figure (atomic displacements, free energies)
 
@@ -12,7 +12,7 @@ usage:
     python run_alamode_scph.py --calculator mace --calculator-kwargs '{"model": "medium"}'
 
 The helpers (NodeBank, calcfunctions, ...) are shared with run_alamode_phonons.py.
-codes: alm, anphon, displace, mattersim @<computer>.
+codes: alm, anphon, displace, ase_runner @<computer>.
 """
 import argparse
 import json
@@ -190,7 +190,7 @@ def main():
     code_alm = load_code(f"alm@{args.computer}")
     code_anphon = load_code(f"anphon@{args.computer}")
     code_displace = load_code(f"displace@{args.computer}")
-    code_mattersim = load_code(f"mattersim@{args.computer}")
+    code_ase = load_code(f"ase_runner@{args.computer}")   # the alamode-ase-runner script
     opt_calc = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                 "max_wallclock_seconds": 4 * 3600}
     if args.gpu:
@@ -215,7 +215,7 @@ def main():
         unit = unit0
     else:
         relax = run_cached(bank, "relax_volume",
-                           lambda: submit_ase("relax_ase", code_mattersim, unit0, calculator, opt_serial,
+                           lambda: submit_ase("relax_ase", code_ase, unit0, calculator, opt_serial,
                                                     cwd=Str(dirs["relax"]), hydrostatic_strain=Bool(True)))
         unit = relax.outputs.structure
         print(f"relaxed cell [A]: {np.round(relax.outputs.results['cell_lengths'], 5)} (input {np.round(unit0.cell_lengths, 5)})")
@@ -236,7 +236,7 @@ def main():
                           lambda: submit_displace(code_displace, supercell, alm_suggest.outputs.pattern, args.mag, norder1, cwd_h))
     print(f"harmonic: {displace.outputs.results['number_of_displacements']} displaced structures")
     forces_h = run_cached(bank, "forces_h",
-                          lambda: submit_forces(code_mattersim, displace.outputs.displaced_structures, supercell, calculator,
+                          lambda: submit_forces(code_ase, displace.outputs.displaced_structures, supercell, calculator,
                                                 args.njobs, opt_calc, cwd_h))
     alm_opt_h = run_cached(bank, "alm_opt_h",
                            lambda: submit_alm(code_alm, "opt", supercell, prefix1, norder1, cwd_h, dfset=forces_h.outputs.dfset))
@@ -246,14 +246,14 @@ def main():
     # --- MD + random displacements (tutorial step 1-2: AIMD, displace.py -md --random)
     cwd_md = Str(dirs["md"])
     md = run_cached(bank, "md",
-                    lambda: submit_ase("md_ase", code_mattersim, supercell, calculator, opt_calc, cwd=cwd_md,
+                    lambda: submit_ase("md_ase", code_ase, supercell, calculator, opt_calc, cwd=cwd_md,
                                              temperature=Float(args.md_temperature), timestep=Float(args.md_timestep),
                                              nsteps=Int(args.md_steps), sample=Str(args.md_sample),
                                              random_mag=Float(args.random_mag), random_seed=Int(args.random_seed)))
     ndata = md.outputs.results["nsnapshots"]
     print(f"MD: {ndata} snapshots, mean T = {md.outputs.results['mean_temperature']:.1f} K")
     forces_md = run_cached(bank, "forces_md",
-                           lambda: submit_forces(code_mattersim, md.outputs.displaced_structures, supercell, calculator,
+                           lambda: submit_forces(code_ase, md.outputs.displaced_structures, supercell, calculator,
                                                  args.njobs, opt_calc, cwd_md))
     dfset_md = forces_md.outputs.dfset
 
@@ -290,7 +290,7 @@ def main():
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
         extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
-        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_mattersim, prim, bec_calculator, opt_serial,
+        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_ase, prim, bec_calculator, opt_serial,
                                                               cwd=Str(dirs["scph"]), **extra))
         r = bec.outputs.results
         print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})

@@ -9,10 +9,10 @@ the latest version is v0.9_free_energy_convergence
 The forces of the displaced structures can be computed with an ASE calculator (MatterSim by default;
 MACE, CHGNet, SevenNet, ORB, EMT, ... through `aiida_alamode.ase_runner.CALCULATORS`)
 instead of DFT or LAMMPS.  Install with `pip install -e .[mattersim]` and set up a code for the
-console script `alamode-ase-runner` (alias `alamode-mattersim`) (e.g. `verdi code create core.code.installed --label mattersim
---computer <computer> --filepath-executable $(which alamode-mattersim) --default-calc-job-plugin alamode.mattersim`).
+console script `alamode-ase-runner` (e.g. `verdi code create core.code.installed --label ase_runner
+--computer <computer> --filepath-executable $(which alamode-ase-runner) --default-calc-job-plugin alamode.forces_ase`).
 
-CalcJobs.  Two kinds of prediction are kept apart: *forces* (energies, forces, stresses: `calculations/force_calcjob.py`, base `ForceCalculatorBaseCalculation`) and *dielectric properties* (Born effective charges, dielectric tensor: `calculations/dielectric_calcjob.py`, base `DielectricCalculatorBaseCalculation`).  The engine can be a DFT code (VASP, Quantum ESPRESSO: to be added as subclasses with the same output ports) or a machine-learning potential through ASE (`engine_base.py`: `AseRunnerBaseCalculation`, the `alamode-ase-runner` script).  The old `alamode.mattersim*` entry points remain as aliases.
+CalcJobs.  Two kinds of prediction are kept apart: *forces* (energies, forces, stresses: `calculations/force_calcjob.py`, base `ForceCalculatorBaseCalculation`) and *dielectric properties* (Born effective charges, dielectric tensor: `calculations/dielectric_calcjob.py`, base `DielectricCalculatorBaseCalculation`).  The engine can be a DFT code (VASP, Quantum ESPRESSO: to be added as subclasses with the same output ports) or a machine-learning potential through ASE (`engine_base.py`: `AseRunnerBaseCalculation`, the `alamode-ase-runner` script).  
 
 | entry point | input | output |
 |---|---|---|

@@ -13,7 +13,7 @@ usage:
     python run_alamode_qha.py --structure X.cif --supercell-harm 4 4 2 --supercell-anharm 3 3 2 --name X
     python run_alamode_qha.py --calculator mace --calculator-kwargs '{"model": "medium"}'
 
-codes: alm, anphon, displace, mattersim @<computer>.
+codes: alm, anphon, displace, ase_runner @<computer>.
 """
 import argparse
 import json
@@ -182,7 +182,7 @@ def main():
     code_alm = load_code(f"alm@{args.computer}")
     code_anphon = load_code(f"anphon@{args.computer}")
     code_displace = load_code(f"displace@{args.computer}")
-    code_mattersim = load_code(f"mattersim@{args.computer}")
+    code_ase = load_code(f"ase_runner@{args.computer}")   # the alamode-ase-runner script
     opt_calc = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                 "max_wallclock_seconds": 4 * 3600}
     if args.gpu:
@@ -207,7 +207,7 @@ def main():
         unit = unit0
     else:
         relax = run_cached(bank, f"relax_{args.relax}",
-                           lambda: submit_ase("relax_ase", code_mattersim, unit0, calculator, opt_serial,
+                           lambda: submit_ase("relax_ase", code_ase, unit0, calculator, opt_serial,
                                                     cwd=Str(dirs["relax"]), hydrostatic_strain=Bool(args.relax == "volume")))
         unit = relax.outputs.structure
         r = relax.outputs.results
@@ -232,7 +232,7 @@ def main():
                               lambda: submit_displace(code_displace, supercell, suggest.outputs.pattern, args.mag, norder1, cwd))
         # forces of the undisplaced supercell are subtracted (a strained cell is not at equilibrium)
         forces = run_cached(bank, f"{tag}_forces",
-                            lambda: submit_forces(code_mattersim, displace.outputs.displaced_structures, supercell, calculator,
+                            lambda: submit_forces(code_ase, displace.outputs.displaced_structures, supercell, calculator,
                                                   args.njobs, opt_calc, cwd, subtract_offset=True))
         opt = run_cached(bank, f"{tag}_alm_opt",
                          lambda: submit_alm(code_alm, "opt", supercell, prefix, norder1, cwd, dfset=forces.outputs.dfset))
@@ -253,7 +253,7 @@ def main():
     _, opt_ha = harmonic_ifcs("harm_small", unit, args.supercell_anharm, dirs["anharmonic"], Str(f"{name}_k{ka}_harmonic"))
 
     md = run_cached(bank, "md",
-                    lambda: submit_ase("md_ase", code_mattersim, supercell_a, calculator, opt_calc, cwd=cwd_md,
+                    lambda: submit_ase("md_ase", code_ase, supercell_a, calculator, opt_calc, cwd=cwd_md,
                                              temperature=Float(args.md_temperature), timestep=Float(args.md_timestep),
                                              nsteps=Int(args.md_steps), sample=Str(args.md_sample),
                                              random_mag=Float(args.random_mag), random_seed=Int(args.random_seed)))
@@ -261,7 +261,7 @@ def main():
     print(f"MD ({len(supercell_a.sites)} atoms, {args.md_temperature} K): {ndata} snapshots, "
           f"mean T = {md.outputs.results['mean_temperature']:.1f} K")
     forces_md = run_cached(bank, "forces_md",
-                           lambda: submit_forces(code_mattersim, md.outputs.displaced_structures, supercell_a, calculator,
+                           lambda: submit_forces(code_ase, md.outputs.displaced_structures, supercell_a, calculator,
                                                  args.njobs, opt_calc, cwd_md))
     dfset_md = forces_md.outputs.dfset
     norder3 = Int(3)
@@ -296,7 +296,7 @@ def main():
 
     # --- 4. elastic constants and strain-force coupling of the primitive cell
     elastic = run_cached(bank, "elastic",
-                         lambda: submit_ase("elastic_ase", code_mattersim, prim, calculator, opt_serial,
+                         lambda: submit_ase("elastic_ase", code_ase, prim, calculator, opt_serial,
                                                   cwd=Str(dirs["elastic"]), delta=Float(args.elastic_delta),
                                                   strain_force_delta=Float(args.strain)))
     C = np.array(elastic.outputs.results["soec_GPa"])

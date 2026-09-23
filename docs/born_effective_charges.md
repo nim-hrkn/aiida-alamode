@@ -2,7 +2,7 @@
 
 anphon の LO-TO 分裂の補正（NONANALYTIC = 1, 2, 3）には BORNINFO ファイル（高周波誘電率 ε∞ と各原子の
 Born 有効電荷 Z*）が必要になる。MatterSim などの力場は Z* を出せないため、v0.10 では Z* を予測する
-モデル SevenNet-Polar を calculator として使い、BORNINFO を作る CalcJob `alamode.mattersim_bec` を追加した。
+モデル SevenNet-Polar を calculator として使い、BORNINFO を作る CalcJob `alamode.bec_ase` を追加した。
 候補モデルの比較は `alamode_test/BCE.md` を参照。
 
 ## SevenNet-Polar のインストール
@@ -31,7 +31,7 @@ PbTe のような Te を含む系は扱えない。
 `aiida_alamode.ase_runner.CALCULATORS` の `sevennet-polar` は既定で
 `~/models/sevennet-polar/SevenNet-PS-M.pth`（環境変数 `SEVENNET_POLAR_MODEL` で変更）を読む。
 
-## CalcJob `alamode.bec_ase`（`AseBornChargesCalculation`、旧名 `alamode.mattersim_bec`）
+## CalcJob `alamode.bec_ase`（`AseBornChargesCalculation`）
 
 実装は `calculations/dielectric_calcjob.py`。力の予測（`force_calcjob.py`、`ForceCalculatorBaseCalculation`）とは別の種類の予測なので、基底は `DielectricCalculatorBaseCalculation` に分けてある（`structure`、`dielectric`、`enforce_asr` の入力と `born_effective_charges`、`borninfo` の出力はここで定義）。VASP（LEPSILON）や QE（ph.x）で Z* と ε∞ を出す CalcJob はこの基底の下に作れば anphon 側は変更なしで使える。ASE 側のエンジン共通部分は `engine_base.py` の `AseRunnerBaseCalculation`。
 
@@ -40,7 +40,7 @@ PbTe のような Te を含む系は扱えない。
   Σ_i Z*_i = 0 になるよう平均を引く）。
 - 出力: `results`（Z* の対角、ASR の残差、ε∞ の出所）、`born_effective_charges`（ArrayData: `bec`、`bec_raw`、`dielectric`）、
   `borninfo`（ε∞ が分かるときだけ。anphon の `borninfo` 入力にそのまま渡せる SinglefileData）。
-- 実体は runner の `bec` モード（`alamode-mattersim job.json`）で、ASE calculator の
+- 実体は runner の `bec` モード（`alamode-ase-runner job.json`）で、ASE calculator の
   `results["born_effective_charges"]`（nat×3×3）を読む。
 
 ## ドライバでの使い方
@@ -51,7 +51,7 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
 ```
 
 `--borninfo` でファイルを渡す代わりに `--borninfo-calculator` を指定すると、緩和後の基本胞に対して
-`alamode.mattersim_bec` が走り、その BORNINFO が anphon に渡る。`--dielectric` の値は文献値を与える
+`alamode.bec_ase` が走り、その BORNINFO が anphon に渡る。`--dielectric` の値は文献値を与える
 （立方 BaTiO₃ の ε∞ = 6.7 は Zhong, King-Smith, Vanderbilt, PRL 72, 3618 (1994) の LDA 値）。
 
 ## 注意

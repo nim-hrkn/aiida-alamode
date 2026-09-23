@@ -32,7 +32,7 @@ MatterSim / SevenNet-Polar のジョブを投げるための手順と、実際�
    `pip install mattersim`、SevenNet-Polar はソースを送って `pip install ./SevenNet-Polar`（git が無い場合）。
    checkpoint は `~/models/sevennet-polar/` に置く（`SEVENNET_POLAR_MODEL` で変更可）。
 4. **aiida-alamode の runner**：GPU ノードには AiiDA は不要。`pip install --no-deps <aiida-alamode のソース>` で
-   console script `alamode-ase-runner`（別名 `alamode-mattersim`）だけを使う（`aiida_alamode.ase_runner` は aiida を import しない）。
+   console script `alamode-ase-runner` だけを使う（`aiida_alamode.ase_runner` は aiida を import しない）。
 5. `~/aiida_run` を作る。slurm の GPU は `gres.conf` に登録されていること（`sinfo -o "%G"` で `gpu:1` が見える）。
 
 ## ホスト側の登録
@@ -64,7 +64,7 @@ PRE="export PATH=/home/<user>/miniforge3/envs/alamode/bin:\$PATH"
 for spec in "alm:alamode.alm_suggest:/home/<user>/bin/alamode/alm" "anphon:alamode.anphon:/home/<user>/bin/alamode/anphon" \
             "displace:alamode.displace_pf:/home/<user>/bin/alamode/displace.py" \
             "analyze_phonons:alamode.analyze_phonons:/home/<user>/bin/alamode/analyze_phonons" \
-            "mattersim:alamode.forces_ase:/home/<user>/miniforge3/envs/alamode/bin/alamode-mattersim"; do
+            "ase_runner:alamode.forces_ase:/home/<user>/miniforge3/envs/alamode/bin/alamode-ase-runner"; do
   IFS=: read label plugin exe <<< "$spec"
   verdi code create core.code.installed -n --label $label --computer gpu-node-async --default-calc-job-plugin $plugin \
       --filepath-executable $exe --prepend-text "$PRE"

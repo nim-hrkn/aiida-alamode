@@ -2,7 +2,7 @@
 # BaHfO3 (cubic perovskite, 5 atoms): Born effective charges with SevenNet-Polar, harmonic phonons with and
 # without the LO-TO correction, cubic IFCs and the RTA lattice thermal conductivity, and the SCPH
 # (anharmonic, finite-temperature) phonons with structural relaxation.  Forces: MatterSim.
-# All steps run through AiiDA (codes alm, anphon, displace, analyze_phonons, mattersim @$AIIDA_ALAMODE_COMPUTER);
+# All steps run through AiiDA (codes alm, anphon, displace, analyze_phonons, ase_runner @$AIIDA_ALAMODE_COMPUTER);
 # finished steps are reused from run_v010*/BaHfO3/.node.json on rerun.
 set -e
 cd "$(dirname "$0")"

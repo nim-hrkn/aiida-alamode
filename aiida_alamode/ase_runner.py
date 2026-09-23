@@ -18,7 +18,7 @@ Born effective charges.
 
 This script runs on the computer side (inside a scheduler job) and must not import aiida.
 
-usage: alamode-ase-runner job.json   (alias: alamode-mattersim)
+usage: alamode-ase-runner job.json
 
 job.json (mode "forces", the default):
     {"files": ["disp1.pw.in", ...], "input_format": "espresso-in",

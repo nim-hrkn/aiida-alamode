@@ -129,6 +129,3 @@ class ForcesWorkChain(WorkChain):
             extra["offset"] = self.ctx.offset.outputs.arrays
             self.out("offset_arrays", extra["offset"])
         self.out("dfset", make_dfset(self.inputs.structure_org, arrays, **extra))
-
-
-ForcesMattersimWorkChain = ForcesWorkChain   # backward-compatible name

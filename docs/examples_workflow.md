@@ -6,7 +6,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 
 ## 共通の仕組み
 
-- **実行の単位**。alm、anphon、displace.py、analyze_phonons、alamode-mattersim の各実行は AiiDA の CalcJob として
+- **実行の単位**。alm、anphon、displace.py、analyze_phonons、alamode-ase-runner の各実行は AiiDA の CalcJob として
   slurm に投げる。構造の変換や図の作成は calcfunction。全部が provenance graph に残り、最後に
   `verdi node graph generate <pk>` で辿れる。
 - **再実行の省略**。各ステップの結果ノードの pk を `<root>/<name>/.node.json` に記録し、次回は完了済みのステップを
@@ -21,7 +21,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 - **調和 IFC の共通ステップ**。
   1. `alamode.alm_suggest`：supercell から変位パターンを求める（List として出力）。
   2. `alamode.displace_pf`：supercell を QE 形式の雛形に書き、displace.py -pf で変位構造を作り、TrajectoryData として返す。
-  3. `alamode.forces`（ForcesWorkChain、旧名 force_simulator_mattersim）：変位構造を njobs 個の slurm ジョブに分けて MatterSim で力を計算し、結果を結合して
+  3. `alamode.forces`（ForcesWorkChain）：変位構造を njobs 個の slurm ジョブに分けて MatterSim で力を計算し、結果を結合して
      DFSET（Ry と Bohr の単位、extract.py --QE と同じ書式）を List で返す。
   4. `alamode.alm_opt`：DFSET から IFC を最小二乗で決め、anphon 用の xml を返す。
 

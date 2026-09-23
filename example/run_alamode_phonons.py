@@ -21,7 +21,7 @@ usage:
     python run_alamode_phonons.py --preset Si --calculator mace --calculator-kwargs '{"model": "medium"}'
     python run_alamode_phonons.py --preset Si --calculator emt   # any name in aiida_alamode.ase_runner.CALCULATORS
 
-codes: alm, anphon, displace, analyze_phonons, mattersim @<computer>.  verdi daemon and RabbitMQ must be running.
+codes: alm, anphon, displace, analyze_phonons, ase_runner @<computer>.  verdi daemon and RabbitMQ must be running.
 
 """
 import argparse
@@ -573,15 +573,15 @@ def main():
     code_alm = load_code(f"alm@{args.computer}")
     code_anphon = load_code(f"anphon@{args.computer}")
     code_displace = load_code(f"displace@{args.computer}")
-    code_mattersim = load_code(f"mattersim@{args.computer}")
+    code_ase = load_code(f"ase_runner@{args.computer}")   # the alamode-ase-runner script
     code_analyze = load_code(f"analyze_phonons@{args.computer}")    # the compiled analyze_phonons
     # slurm allocates whole cores (CR_Core). MatterSim uses the GPU if available, otherwise `cores` threads.
-    opt_mattersim = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
+    opt_ase = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                      "max_wallclock_seconds": 3600}
     opt_serial = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": 2},
                   "max_wallclock_seconds": 3600}
     if args.gpu:   # MatterSim / SevenNet jobs (forces, relax, Born charges) on the GPU
-        opt_mattersim["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
+        opt_ase["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
         opt_serial["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
 
     # --- 0. input structure. The run directory is named after the formula unless --name is given.
@@ -609,7 +609,7 @@ def main():
         unit = unit0
     else:
         relax = run_cached(bank, f"relax_{args.relax}",
-                           lambda: submit_ase("relax_ase", code_mattersim, unit0, calculator, opt_serial,
+                           lambda: submit_ase("relax_ase", code_ase, unit0, calculator, opt_serial,
                                                     cwd=Str(dirs["relax"]), hydrostatic_strain=Bool(args.relax == "volume")))
         unit = relax.outputs.structure
         r = relax.outputs.results
@@ -637,8 +637,8 @@ def main():
                           lambda: submit_displace(code_displace, supercell, alm_suggest.outputs.pattern, args.mag, norder, cwd_harm))
     print(f"{displace.outputs.results['number_of_displacements']} displaced structures (mag = {args.mag} A)")
     forces = run_cached(bank, "forces",
-                        lambda: submit_forces(code_mattersim, displace.outputs.displaced_structures, supercell, calculator,
-                                              args.njobs, opt_mattersim, cwd_harm))
+                        lambda: submit_forces(code_ase, displace.outputs.displaced_structures, supercell, calculator,
+                                              args.njobs, opt_ase, cwd_harm))
     fmax = np.abs(forces.outputs.arrays.get_array("forces")).max(axis=(1, 2))
     print("max |F| of the displaced structures [eV/A]:", np.round(fmax, 5))
     alm_opt = run_cached(bank, "alm_opt",
@@ -654,7 +654,7 @@ def main():
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
         extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
-        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_mattersim, prim, bec_calculator, opt_serial,
+        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_ase, prim, bec_calculator, opt_serial,
                                                               cwd=Str(dirs["phonons"]), **extra))
         r = bec.outputs.results
         print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})
@@ -729,8 +729,8 @@ def main():
     print(f"cubic: {displace2.outputs.results['number_of_displacements']} displaced structures "
           f"(mag = {args.cubic_mag} A, cutoff {args.cubic_cutoff} Bohr)")
     forces2 = run_cached(bank, "forces2",
-                         lambda: submit_forces(code_mattersim, displace2.outputs.displaced_structures, supercell, calculator,
-                                               args.njobs, opt_mattersim, cwd_cubic))
+                         lambda: submit_forces(code_ase, displace2.outputs.displaced_structures, supercell, calculator,
+                                               args.njobs, opt_ase, cwd_cubic))
     alm2_opt = run_cached(bank, "alm2_opt",
                           lambda: submit_alm(code_alm, "opt", supercell, prefix2, norder2, cwd_cubic, cutoff=cutoff,
                                              dfset=forces2.outputs.dfset, fc2xml=alm_opt.outputs.input_ANPHON))
