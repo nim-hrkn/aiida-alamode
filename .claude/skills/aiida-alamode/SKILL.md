@@ -29,7 +29,7 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 
 ## ドライバ（example/）
 
-- `run_alamode_phonons.py --preset Si|PbTe` / `--structure X.cif --supercell n n n [--relax full --idealize] [--cubic --cubic-cutoff BOHR] [--nonanalytic 0 3 --borninfo FILE | --borninfo-calculator sevennet-polar --dielectric E]`
+- `run_alamode_phonons.py --preset Si|PbTe` / `--structure X.cif --supercell n n n [--relax full --idealize] [--cubic --cubic-cutoff BOHR] [--nonanalytic 0 3 --borninfo FILE | --borninfo-calculator sevennet-polar (--dielectric-model anisonet | --dielectric E)]`
 - `run_alamode_scph.py`（BaTiO₃ 既定。MatterSim では TMAX 700、DT 50、MIXBETA_COORD 0.2 が必要）
 - `run_alamode_qha.py`（ZnO 既定）、`run_BaHfO3_example.sh`（Z* → フォノン → κ → SCPH の一括）
 - 共通：`--computer <label> --gpu --njobs N --cores N --root DIR`。`provenance_processes.py <pk> out.png` でプロセスだけの provenance 図。
@@ -38,7 +38,7 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 
 1. **supercell の像**：`make_diagonal_supercell` を使う（ASE の make_supercell だと translation 1 が基本胞の位置とずれ、NONANALYTIC=3 が壊れる）。
 2. **緩和後のノイズ**：alm が「自由な IFC 0 個」→ `--idealize`（spglib で対称化して入力の座標系に戻す）。
-3. **BORNINFO の順序**：&position（構造の原子順）であって KD の順ではない。`bec_ase` と anphon に同じ StructureData を渡す。ε∞ はモデルが返さないので `dielectric` 入力で与える。
+3. **BORNINFO の順序**：&position（構造の原子順）であって KD の順ではない。`bec_ase` と anphon に同じ StructureData を渡す。ε∞ は SevenNet-Polar からは出ない。`dielectric_model` = anisonet（電子誘電率を予測、~/models/anisonet/anisonet-stock.ckpt）か `dielectric` 入力で与える。
 4. **anphon は NAT を受け付けない**（atoms_to_alm_in で alm モードだけに書く）。ひずんだ格子の IFC は `subtract_offset` が必須。
 5. **aiida-core ≥ 2.3 の withmpi**：既定値が無いので base CalcJob で False を設定済み。
 6. **SCPH の発散**：TMAX が低い（400 K）と 75 K の構造ループが 1000 回回っても収束しない。最低温度で "negative frequency is detected" が続くと anphon が `std::length_error` で落ちる → TMIN を上げる、ADD_HESS_DIAG。

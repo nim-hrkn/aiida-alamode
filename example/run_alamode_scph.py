@@ -152,6 +152,8 @@ def parse_args():
     parser.add_argument("--borninfo-calculator", metavar="NAME",
                         help="compute the Born charges with this calculator (alamode.bec_ase, e.g. sevennet-polar)")
     parser.add_argument("--borninfo-kwargs", default="{}", help="JSON kwargs of --borninfo-calculator")
+    parser.add_argument("--dielectric-model", metavar="NAME",
+                        help="predict eps_inf with this model when the Born-charge calculator has none (e.g. anisonet)")
     parser.add_argument("--dielectric", type=float, nargs="+", metavar="E", help="dielectric tensor for --borninfo-calculator")
     parser.add_argument("--nonanalytic", type=int, default=3, help="NONANALYTIC of the SCPH run when Born charges are given")
     parser.add_argument("--computer", default=os.environ.get("AIIDA_ALAMODE_COMPUTER", "localhost"),
@@ -290,6 +292,8 @@ def main():
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
         extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
+        if args.dielectric_model:
+            extra["dielectric_model"] = Dict({"name": args.dielectric_model})
         bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_ase, prim, bec_calculator, opt_serial,
                                                               cwd=Str(dirs["scph"]), **extra))
         r = bec.outputs.results

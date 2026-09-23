@@ -24,19 +24,30 @@ done
 | SevenNet-PS-S / M / L | Z* のみ（BEC 専用） | Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr |
 | SevenNet-PM-S / M / L | エネルギー、力、応力、Z*（マルチタスク） | Li, O, P, Zr |
 
-どの checkpoint も ε∞ は返さない（calculator 自体は `dielectric_tensor` に対応している）。
+どの checkpoint も ε∞ は返さない（calculator 自体は `dielectric_tensor` に対応している）。ε∞ は **AnisoNet**（下記）で予測できる。
 ペロブスカイトの学習データは ABO₃（A = Ba, Ca, Sr, Pb、B = Ti, Zr, Hf）の置換系 1,224 構造で、
 PbTe のような Te を含む系は扱えない。
 
 `aiida_alamode.ase_runner.CALCULATORS` の `sevennet-polar` は既定で
 `~/models/sevennet-polar/SevenNet-PS-M.pth`（環境変数 `SEVENNET_POLAR_MODEL` で変更）を読む。
 
+## ε∞ の予測：AnisoNet
+
+- コード: https://github.com/virtualatoms/AnisoNet（Lou & Ganose, arXiv:2405.07915, MIT）。重み: figshare 26270974（`anisonet-stock.ckpt`, 249 MB）。
+- Materials Project の約 6,700 個の誘電テンソルで学習した等変 GNN。返すのは**電子誘電率 ε∞**（イオン寄与を含む全誘電率ではない）。
+  検証: Si 13.0（実験 11.7）、MgO 3.27（ε∞ 3.0、全誘電率 9.8）、NaCl 2.68（2.3）、BaZrO₃ 4.92、BaHfO₃ 4.70、立方 BaTiO₃ 6.0（LDA 6.7）、単斜 ZrO₂ 5.2〜5.7。
+- 導入: `pip install -e <AnisoNet のクローン>`（依存に lightning と pymatgen）。git の無い計算機では pyproject の versioningit を外して固定版にする。
+  checkpoint は `~/models/anisonet/anisonet-stock.ckpt`（環境変数 `ANISONET_CHECKPOINT`）。
+- パッケージに推論 API は無いので、`notebooks/predict.ipynb` と同じ構成（E3nnModel、layers 2、mul 48、lmax 3、cutoff 5 Å）でモデルを組み、
+  lightning の checkpoint の state_dict を読む。`aiida_alamode.ase_runner.DIELECTRIC_MODELS["anisonet"]` がそれ。
+
 ## CalcJob `alamode.bec_ase`（`AseBornChargesCalculation`）
 
 実装は `calculations/dielectric_calcjob.py`。力の予測（`force_calcjob.py`、`ForceCalculatorBaseCalculation`）とは別の種類の予測なので、基底は `DielectricCalculatorBaseCalculation` に分けてある（`structure`、`dielectric`、`enforce_asr` の入力と `born_effective_charges`、`borninfo` の出力はここで定義）。VASP（LEPSILON）や QE（ph.x）で Z* と ε∞ を出す CalcJob はこの基底の下に作れば anphon 側は変更なしで使える。ASE 側のエンジン共通部分は `engine_base.py` の `AseRunnerBaseCalculation`。
 
 - 入力: `structure`（基本胞。anphon の &position と同じ原子順）、`calculator`（例 `{"name": "sevennet-polar"}`）、
-  `dielectric`（モデルが ε∞ を返さないときの 3×3、対角 3 成分、または等方 1 成分）、`enforce_asr`（既定 True、
+  `dielectric_model`（ε∞ を別のモデルで予測する。`{"name": "anisonet"}`）、`dielectric`（手で与える 3×3、対角 3 成分、または等方 1 成分）。
+  優先順位は calculator 自身の ε∞ → `dielectric_model` → `dielectric`、`enforce_asr`（既定 True、
   Σ_i Z*_i = 0 になるよう平均を引く）。
 - 出力: `results`（Z* の対角、ASR の残差、ε∞ の出所）、`born_effective_charges`（ArrayData: `bec`、`bec_raw`、`dielectric`）、
   `borninfo`（ε∞ が分かるときだけ。anphon の `borninfo` 入力にそのまま渡せる SinglefileData）。
@@ -50,6 +61,8 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
     --nonanalytic 0 3 --borninfo-calculator sevennet-polar --dielectric 6.7
 ```
 
+`--dielectric 6.7` の代わりに `--dielectric-model anisonet` とすれば ε∞ も予測になり、文献値は不要になる。
+
 `--borninfo` でファイルを渡す代わりに `--borninfo-calculator` を指定すると、緩和後の基本胞に対して
 `alamode.bec_ase` が走り、その BORNINFO が anphon に渡る。`--dielectric` の値は文献値を与える
 （立方 BaTiO₃ の ε∞ = 6.7 は Zhong, King-Smith, Vanderbilt, PRL 72, 3618 (1994) の LDA 値）。
@@ -60,7 +73,7 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
   この CalcJob には anphon に渡すのと同じ StructureData を渡すこと。
 - **転置の規約**。Z*_{αβ} の添字順は VASP の `BORN EFFECTIVE CHARGES` の行の並びをそのまま書いている
   （学習データが VASP 由来）。立方晶では対称なので影響しないが、低対称の系では確認が要る。
-- **ε∞ は別に用意する**。SevenNet-Polar の公開 checkpoint は ε∞ を返さない。
+- **ε∞ は SevenNet-Polar からは出ない**。AnisoNet（`--dielectric-model anisonet`）か文献値（`--dielectric`）で与える。
 - **精度の目安**。立方 BaTiO₃（a = 4.0 Å）で PS-M は Ba 2.72、Ti 7.74、O −2.15（⊥）/ −6.15（∥）。
   DFT（LDA）の文献値は Ba 2.75、Ti 7.16、O −2.11 / −5.69。ASR の残差は 0.01 e 程度。
 

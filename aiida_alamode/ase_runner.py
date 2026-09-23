@@ -58,7 +58,9 @@ job.json (mode "bec"): Born effective charges (and the dielectric tensor when th
      "calculator": {"name": "sevennet-polar", "kwargs": {"model": ".../SevenNet-PS-M.pth"}},
      "output": "ase_results.json"}
 The result has "born_effective_charges" (nat x 3 x 3, e; the calculator's convention, rows as VASP
-BORN EFFECTIVE CHARGES) and "dielectric_tensor" (3 x 3, or null).
+BORN EFFECTIVE CHARGES) and "dielectric_tensor" (3 x 3, or null).  When the calculator does not give the
+dielectric tensor, "dielectric_model": {"name": "anisonet", "kwargs": {...}} predicts the high-frequency
+(electronic) dielectric tensor eps_inf with a separate model (DIELECTRIC_MODELS).
 
 job.json (mode "elastic"): clamped-ion elastic constants and strain-force coupling of a cell,
 for the anphon QHA structural optimization (STRAIN_IFC_DIR files elastic_constants.in and strain_force.in).
@@ -325,7 +327,55 @@ def _elastic(atoms, job: dict) -> dict:
             "strain_force": strain_force, "n_energy_evaluations": len(cache)}
 
 
-def _bec(atoms) -> dict:
+# name -> (module, callable, default kwargs): callable(atoms, **kwargs) -> 3x3 eps_inf
+DIELECTRIC_MODELS = {
+    # AnisoNet (github.com/virtualatoms/AnisoNet, weights figshare 26270974): electronic dielectric tensor
+    "anisonet": ("aiida_alamode.ase_runner", "_anisonet_dielectric",
+                 {"checkpoint": os.environ.get("ANISONET_CHECKPOINT",
+                                               os.path.expanduser("~/models/anisonet/anisonet-stock.ckpt")),
+                  "device": "cpu", "cutoff": 5.0}),
+}
+
+
+def _anisonet_dielectric(atoms, checkpoint, device="cpu", cutoff=5.0):
+    """eps_inf (3x3) of atoms with the pretrained AnisoNet (E3nnModel of the predict.ipynb notebook)."""
+    import pandas as pd
+    import torch
+    from e3nn.io import CartesianTensor
+    from anisonet.data import BaseDataset, collate_fn
+    from anisonet.model import E3nnModel
+    default = torch.get_default_dtype()
+    torch.set_default_dtype(torch.float64)
+    try:
+        ct = CartesianTensor("ij=ji")
+        dataset = BaseDataset(pd.DataFrame({"structure": [atoms.copy()], "target": [[0.0] * 6]}), cutoff=cutoff)
+        net = E3nnModel(in_dim=118, em_dim=48, in_attr_dim=118, em_attr_dim=48, irreps_out=str(ct), layers=2, mul=48,
+                        lmax=3, max_radius=dataset.cutoff, number_of_basis=15, num_neighbors=dataset.num_neighbors,
+                        reduce_output=True, same_em_layer=True)
+        sd = torch.load(checkpoint, map_location="cpu", weights_only=False)["state_dict"]
+        net.load_state_dict({k[len("model."):]: v for k, v in sd.items() if k.startswith("model.")})
+        net = net.eval().to(_get_device(device))
+        with torch.no_grad():
+            batch = collate_fn([dataset[0]]); batch.to(_get_device(device))
+            out = net(batch).cpu()
+        return ct.to_cartesian(out)[0].numpy()
+    finally:
+        torch.set_default_dtype(default)
+
+
+def predict_dielectric(atoms, spec: dict):
+    """eps_inf with DIELECTRIC_MODELS[spec["name"]] (kwargs merged with the defaults)."""
+    import importlib
+    name = spec["name"].lower()
+    if name not in DIELECTRIC_MODELS:
+        raise ValueError(f"unknown dielectric model {name}. known: {sorted(DIELECTRIC_MODELS)}")
+    module, callable_, defaults = DIELECTRIC_MODELS[name]
+    kwargs = {**defaults, **(spec.get("kwargs") or {})}
+    eps = getattr(importlib.import_module(module), callable_)(atoms, **kwargs)
+    return np.asarray(eps, dtype=float).reshape(3, 3)
+
+
+def _bec(atoms, job: dict = None) -> dict:
     """Born effective charges of every atom (and the dielectric tensor if the calculator gives one)."""
     calc = atoms.calc
     calc.calculate(atoms, properties=["born_effective_charges"])
@@ -334,10 +384,15 @@ def _bec(atoms) -> dict:
         raise ValueError(f"the calculator {type(calc).__name__} does not provide born_effective_charges.")
     bec = np.asarray(results["born_effective_charges"], dtype=float).reshape(len(atoms), 3, 3)
     eps = results.get("dielectric_tensor")
+    source = "calculator" if eps is not None else None
+    if eps is None and job and job.get("dielectric_model"):
+        eps = predict_dielectric(atoms, job["dielectric_model"])
+        source = job["dielectric_model"]["name"]
+        print("dielectric tensor (%s):" % source, np.round(eps, 3).tolist(), flush=True)
     out = {"symbols": atoms.get_chemical_symbols(), "positions": atoms.get_positions().tolist(),
            "cell": atoms.cell.array.tolist(), "born_effective_charges": bec.tolist(),
            "dielectric_tensor": np.asarray(eps, dtype=float).reshape(3, 3).tolist() if eps is not None else None,
-           "asr_residual": bec.sum(axis=0).tolist()}
+           "dielectric_source": source, "asr_residual": bec.sum(axis=0).tolist()}
     if "energy" in results:
         out["energy"] = float(results["energy"])
     for i, (s, z) in enumerate(zip(atoms.get_chemical_symbols(), bec)):
@@ -368,7 +423,7 @@ def run(job: dict) -> dict:
     if mode == "bec":
         atoms = ase.io.read(job["files"][0], format=input_format)
         atoms.calc = calc
-        result = _bec(atoms)
+        result = _bec(atoms, job)
         result.update({"mode": mode, "calculator": spec, "num_threads": nthreads,
                        "time_model_load": t_load, "time_total": time.time() - t0, "structures": []})
         return result

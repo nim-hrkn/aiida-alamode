@@ -18,8 +18,9 @@ of a cell, i.e. what anphon needs in BORNINFO for the LO-TO correction (NONANALY
 This is a different prediction from the forces (force_calcjob.py): a force calculator does not give Z*,
 and a Z* model such as SevenNet-Polar is not a force field.  Engines:
 - ASE calculators that provide ``born_effective_charges`` (SevenNet-Polar): AseBornChargesCalculation
-  (entry point alamode.bec_ase).  eps_inf comes from the model when it
-  provides ``dielectric_tensor``, otherwise from the ``dielectric`` input.
+  (entry point alamode.bec_ase).  eps_inf comes from the calculator when it provides ``dielectric_tensor``,
+  else from a separate dielectric model (``dielectric_model`` input, e.g. AnisoNet), else from the
+  ``dielectric`` input.
 - DFT (VASP LEPSILON / LCALCEPS, Quantum ESPRESSO ph.x): a subclass of DielectricCalculatorBaseCalculation
   that parses Z* and eps_inf from the code output (e.g. VaspBornChargesCalculation, alamode.bec_vasp).
 
@@ -59,6 +60,9 @@ class DielectricCalculatorBaseCalculation(ExternalCalculatorBaseCalculation):
         spec.input("dielectric", valid_type=List, required=False,
                    help="high-frequency dielectric tensor if the engine has none: 3x3 nested list, "
                         "[e_xx, e_yy, e_zz] or [e] (isotropic)")
+        spec.input("dielectric_model", valid_type=Dict, required=False,
+                   help='model that predicts eps_inf when the engine has none, e.g. {"name": "anisonet"} '
+                        '(ase_runner.DIELECTRIC_MODELS); takes precedence over the dielectric input')
         spec.input("enforce_asr", valid_type=Bool, default=lambda: Bool(True),
                    help="enforce the acoustic sum rule sum_i Z*_i = 0 (the mean of Z* is subtracted)")
         spec.output('born_effective_charges', valid_type=ArrayData,
@@ -93,6 +97,8 @@ class AseBornChargesCalculation(AseRunnerBaseCalculation, DielectricCalculatorBa
     def prepare_for_submission(self, folder: Folder) -> CalcInfo:
         _write_extxyz(folder, self._INPUT_STRUCTURE_FILENAME, self.inputs.structure.get_ase())
         job = self._job_base("bec", [self._INPUT_STRUCTURE_FILENAME], "extxyz")
+        if "dielectric_model" in self.inputs:
+            job["dielectric_model"] = self.inputs.dielectric_model.get_dict()
         return self._calcinfo(folder, job, [])
 
 
@@ -116,7 +122,7 @@ class AseBornChargesParser(AseRunnerBaseParser):
         bec_raw = np.asarray(result.pop("born_effective_charges"), dtype=float)
         bec = bec_raw - bec_raw.mean(axis=0) if self.node.inputs.enforce_asr.value else bec_raw
         dielectric = result.get("dielectric_tensor")
-        source = "model"
+        source = result.get("dielectric_source") or "model"
         if dielectric is None and "dielectric" in self.node.inputs:
             dielectric = _dielectric_matrix(self.node.inputs.dielectric.get_list()).tolist()
             source = "input"

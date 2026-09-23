@@ -504,6 +504,8 @@ def parse_args():
                         help="compute the Born charges of the primitive cell with this calculator instead (alamode.bec_ase; "
                              "e.g. sevennet-polar). Needs --dielectric unless the model gives the dielectric tensor.")
     parser.add_argument("--borninfo-kwargs", default="{}", help="JSON kwargs of --borninfo-calculator")
+    parser.add_argument("--dielectric-model", metavar="NAME",
+                        help="predict eps_inf with this model when the Born-charge calculator has none (e.g. anisonet)")
     parser.add_argument("--dielectric", type=float, nargs="+", metavar="E",
                         help="high-frequency dielectric tensor for --borninfo-calculator: 1 (isotropic), 3 (diagonal) or 9 values")
     parser.add_argument("--na-sigma", type=float, help="NA_SIGMA of NONANALYTIC = 1 (default 0.15)")
@@ -654,6 +656,8 @@ def main():
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
         extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
+        if args.dielectric_model:
+            extra["dielectric_model"] = Dict({"name": args.dielectric_model})
         bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_ase, prim, bec_calculator, opt_serial,
                                                               cwd=Str(dirs["phonons"]), **extra))
         r = bec.outputs.results
