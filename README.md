@@ -1,54 +1,258 @@
-# alamode_aiida
+# aiida-alamode
 
-the latest version is v0.9_free_energy_convergence
+AiiDA plugin for [ALAMODE](https://alamode.readthedocs.io/) (alm, anphon, displace, analyze_phonons).
+Every step of an ALAMODE calculation, from the displaced structures to the thermal conductivity,
+runs as an AiiDA process, so each result keeps its full provenance.
 
+Version 1.0.0.  The forces and the dielectric properties can come from DFT (VASP, Quantum ESPRESSO),
+LAMMPS, or a machine-learning model through ASE (MatterSim by default).
 
+```
+structure ─ relax_ase ─ alm_suggest ─ displace_pf ─ forces ─ alm_opt ─ anphon ─ analyze_phonons
+                                                                  │
+                        bec_ase (Z*) + epsinf_ase (ε∞) ─ BORNINFO ┘   (LO-TO splitting)
+```
 
-## v0.10: MatterSim / ASE-calculator replacement of the force calculations
+## Contents
 
-The forces of the displaced structures can be computed with an ASE calculator (MatterSim by default;
-MACE, CHGNet, SevenNet, ORB, EMT, ... through `aiida_alamode.ase_runner.CALCULATORS`)
-instead of DFT or LAMMPS.  Install with `pip install -e .[mattersim]` and set up a code for the
-console script `alamode-ase-runner` (e.g. `verdi code create core.code.installed --label ase_runner
---computer <computer> --filepath-executable $(which alamode-ase-runner) --default-calc-job-plugin alamode.forces_ase`).
+1. [Install](#install)
+2. [Quick start](#quick-start)
+3. [Forces from a machine-learning potential](#forces-from-a-machine-learning-potential)
+4. [LO-TO splitting: Born effective charges Z\* and the dielectric constant ε∞](#lo-to-splitting-born-effective-charges-z-and-the-dielectric-constant-ε)
+5. [Results of the examples](#results-of-the-examples)
+6. [Other changes since v0.9](#other-changes-since-v09)
+7. [Further documentation](#further-documentation)
 
-CalcJobs.  Two kinds of prediction are kept apart: *forces* (energies, forces, stresses: `calculations/force_calcjob.py`, base `ForceCalculatorBaseCalculation`) and *dielectric properties* (Born effective charges, dielectric tensor: `calculations/dielectric_calcjob.py`, base `DielectricCalculatorBaseCalculation`).  The engine can be a DFT code (VASP, Quantum ESPRESSO: to be added as subclasses with the same output ports) or a machine-learning potential through ASE (`engine_base.py`: `AseRunnerBaseCalculation`, the `alamode-ase-runner` script).  
+## Install
+
+```
+pip install -e .[mattersim]            # MatterSim forces
+pip install -e .[sevennet-polar]       # Born effective charges (SevenNet-Polar)
+pip install -e <clone of github.com/virtualatoms/AnisoNet>   # ε∞ (needs lightning, pymatgen)
+```
+
+Register one AiiDA code per ALAMODE program (`alm`, `anphon`, `displace`, `analyze_phonons`) and one for
+the ASE runner:
+
+```
+verdi code create core.code.installed --label ase_runner --computer <computer> \
+    --filepath-executable $(which alamode-ase-runner) --default-calc-job-plugin alamode.forces_ase
+```
+
+After editing the plugin, run `pip install -e . --no-deps` (entry points) and `verdi daemon restart`.
+
+## Quick start
+
+The drivers in `example/` reproduce the ALAMODE tutorials with MatterSim instead of DFT.
+Results and figures go to `run_*/<name>/`, and finished steps are reused when a driver is run again.
+Set the computer with `--computer <label>` or `export AIIDA_ALAMODE_COMPUTER=<label>`.
+
+```
+cd example
+python run_alamode_phonons.py --preset Si     # harmonic phonons, cubic IFCs, RTA thermal conductivity (tutorial 3, 5-7)
+python run_alamode_phonons.py --preset PbTe   # LO-TO splitting, NONANALYTIC 0-3
+python run_alamode_scph.py                    # BaTiO3: MD + LASSO anharmonic IFCs, SCPH structural relaxation (7.1, 7.4)
+python run_alamode_qha.py                     # ZnO: strained IFCs, elastic constants, QHA thermal expansion (7.5)
+
+# any structure, any calculator
+python run_alamode_phonons.py --structure X.cif --supercell 2 2 2 --calculator mace
+
+# a polar material, with Z* and ε∞ both predicted (no literature value needed)
+python run_alamode_phonons.py --structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 \
+    --borninfo-calculator sevennet-polar --dielectric-model anisonet --nonanalytic 0 3
+
+bash run_BaHfO3_example.sh                    # BaHfO3: Z*, ε∞, phonons, κ, SCPH in one go
+bash run_all_examples.sh <computer> <root>    # every example at once
+```
+
+`--supercell` multiplies the cell in the structure file.  The PbTe 4×4×4 is of the fcc *primitive*
+cell (128 atoms), the Si 2×2×2 of the conventional cell.
+
+## Forces from a machine-learning potential
+
+Two kinds of prediction are kept apart, each with its own base class, so that a DFT engine can
+later be added as a subclass with the same output ports:
+
+- **Forces** (energies, forces, stresses): `calculations/force_calcjob.py`, base `ForceCalculatorBaseCalculation`.
+- **Dielectric properties** (Z\*, ε∞): `calculations/dielectric_calcjob.py`, bases `DielectricCalculatorBaseCalculation` and `DielectricTensorBaseCalculation`.
+
+The ASE engine (`engine_base.py`, script `alamode-ase-runner`) accepts `mattersim`, `mace`, `mace-off`,
+`chgnet`, `sevennet`, `sevennet-polar`, `orb`, `emt`, `lj` (`aiida_alamode.ase_runner.CALCULATORS`).
 
 | entry point | input | output |
 |---|---|---|
-| `alamode.forces_ase` (`AseForcesCalculation`) | `structures` (TrajectoryData) | `arrays` (energies, forces, stresses, positions, cells) |
+| `alamode.forces_ase` | `structures` (TrajectoryData) | `arrays` (energies, forces, stresses, positions, cells) |
 | `alamode.relax_ase` | `structure` | relaxed `structure` (volume only by default) |
-| `alamode.md_ase` | supercell `structure`, temperature, ... | `displaced_structures` (sampled MD snapshots + random displacements, as `displace.py -md --random`) |
+| `alamode.md_ase` | supercell `structure`, temperature | `displaced_structures` (MD snapshots + random displacements, as `displace.py -md --random`) |
 | `alamode.elastic_ase` | primitive `structure` | `strain_ifc_folder` (`elastic_constants.in`, `strain_force.in` for the QHA) |
+| `alamode.bec_ase` | primitive `structure`, `calculator` | `born_effective_charges` |
+| `alamode.epsinf_ase` | primitive `structure`, `dielectric_model` | `dielectric_tensor` (`epsilon_inf`) |
+| `alamode.forces` (WorkChain) | TrajectoryData, `njobs`, `forces_plugin` | `arrays`, `dfset` (DFSET lines, Ry a.u.) |
+| `alamode.borninfo` (WorkChain) | primitive `structure`, `bec`, `epsinf` or `dielectric` | `born_effective_charges`, `dielectric_tensor`, `borninfo` |
 
-The WorkChain `alamode.forces` (`ForcesWorkChain`; `forces_plugin` selects the forces CalcJob, default `alamode.forces_ase`) computes the forces of a
-TrajectoryData in `njobs` scheduler jobs and returns `arrays` and the `dfset` (List of the DFSET lines,
-Rydberg atomic units as `extract.py --QE`); `subtract_offset` subtracts the forces of the undisplaced
-cell (needed for strained cells).
+`alamode.forces` splits the structures over `njobs` scheduler jobs.  With `subtract_offset` it subtracts
+the forces of the undisplaced cell, which strained cells need.
 
-Other additions: `alamode.alm_cv` (elastic-net cross validation, `results['alpha_min']`), the anphon
-CalcJob accepts `borninfo`, `fc2xml`, `extra_files` and any `MODE` (SCPH, QHA: the `param` sections are
-written verbatim, all `{prefix}.*` files are returned in `output_folder`), `param['kpoint']` overrides the
-automatic band path, and `param['interaction']` (NBODY) is kept.  `aiida_alamode.io.supercell.make_diagonal_supercell`
-builds supercells whose translation 1 coincides with the primitive cell (required by NONANALYTIC = 3).
+## LO-TO splitting: Born effective charges Z\* and the dielectric constant ε∞
 
-Fixed: the QE / VASP structure writers of `displace_pf` / `extract`, the cutoff dropped by `alm_opt`,
-NAT in anphon inputs, the `nsample gridtype` arguments of `analyze_phonons` (alamode >= 1.5),
-`withmpi` on aiida-core >= 2.3; aiida-lammps is optional.
+In a polar crystal the long-range Coulomb field splits the longitudinal (LO) and transverse (TO)
+optical modes at Γ.  The force constants of a finite supercell miss this, so anphon adds a
+non-analytic correction (`NONANALYTIC = 1, 2, 3`).  The correction needs a BORNINFO file with two quantities:
 
-Examples (`example/`, tutorial settings with MatterSim instead of DFT; results and figures under `run_*/<name>/`):
+- **Z\*, the Born effective charge tensor of each atom.** It is the polarization created when the atom moves, or equally the force on the atom in an electric field.
+- **ε∞, the high-frequency (electronic) dielectric tensor.** It is the screening by the electrons alone, with the ions clamped. It is *not* the static dielectric constant ε₀, which also contains the ionic response and is much larger in polar crystals (MgO: ε∞ = 3.0, ε₀ = 9.8).
+
+The LO frequency grows with Z\*²/ε∞, so an ε∞ that is too large shrinks the splitting, and a static ε₀
+put in its place would nearly remove it.
+
+### Where the two quantities come from
+
+| quantity | source | how to use it |
+|---|---|---|
+| Z\* | SevenNet-Polar (ML) | `--borninfo-calculator sevennet-polar` (`alamode.bec_ase`) |
+| ε∞ | AnisoNet (ML) | `--dielectric-model anisonet` (`alamode.epsinf_ase`) |
+| ε∞ | literature or your own DFT value | `--dielectric 6.7` (1, 3 or 9 numbers) |
+| both | an existing BORNINFO file | `--borninfo FILE` |
+| both | DFT (VASP LEPSILON, QE ph.x) | a subclass of the dielectric base; `alamode.borninfo` then skips the ε∞ job |
+
+SevenNet-Polar gives Z\* only.  AnisoNet (Lou & Ganose, arXiv:2405.07915, MIT licence) predicts the
+full ε∞ tensor, including its anisotropy, in about 3 s on a CPU.
+
+### Setting up AnisoNet
+
+1. Install the package from a clone of github.com/virtualatoms/AnisoNet.
+2. Download the weights `anisonet-stock.ckpt` (249 MB) from figshare 26270974.
+3. Put the file at `~/models/anisonet/anisonet-stock.ckpt`, or point `ANISONET_CHECKPOINT` at it.
+
+### Example 1: driver
 
 ```
-python run_alamode_phonons.py --preset Si            # harmonic phonons, cubic IFCs, RTA kappa (tutorial 3, 5-7)
-python run_alamode_phonons.py --preset PbTe          # Born charges, NONANALYTIC 0-3
-python run_alamode_phonons.py --structure X.cif --supercell 2 2 2 [--calculator mace]
-python run_alamode_scph.py                           # BaTiO3: MD + LASSO anharmonic IFCs, SCPH structural relaxation (7.1, 7.4)
-python run_alamode_qha.py                            # ZnO: strained IFCs, elastic constants, QHA thermal expansion (7.5)
+python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --name BaTiO3_bec \
+    --nonanalytic 0 3 --borninfo-calculator sevennet-polar --dielectric-model anisonet
 ```
 
-### Born effective charges with SevenNet-Polar (v0.10)
+The driver relaxes the cell, computes the harmonic IFCs, runs `alamode.borninfo` on the primitive
+cell, and draws the bands with and without the correction.  The log shows what went into BORNINFO
+(values rounded here):
 
-Z* and eps_inf are separate jobs: `alamode.bec_ase` (`AseBornChargesCalculation`, SevenNet-Polar checkpoints from zenodo 10.5281/zenodo.21322761) and `alamode.epsinf_ase` (`AseDielectricTensorCalculation`, the electronic dielectric tensor from AnisoNet, github.com/virtualatoms/AnisoNet).  `alamode.borninfo` (`BornInfoWorkChain`) runs both (or takes a given `dielectric`) and writes the BORNINFO file for anphon; the engines are chosen by `bec_plugin` / `epsinf_plugin` (a VASP job giving both would skip the eps_inf job).  `run_alamode_phonons.py --borninfo-calculator sevennet-polar
---dielectric 6.7 --nonanalytic 0 3` uses it (cubic BaTiO3; ZrO2, BaZrO3 and the full BaHfO3 chain `example/run_BaHfO3_example.sh` in the docs).  See `docs/born_effective_charges.md`.
+```
+Born effective charges (diagonal) [e]: {'Ba': [2.72, 2.72, 2.72], 'Ti': [7.72, 7.72, 7.72], 'O': [-2.15, -2.15, -6.14]}
+dielectric tensor (anisonet): [[6.3, 0, 0], [0, 6.3, 0], [0, 0, 6.3]]
+```
 
-Running the MatterSim / SevenNet jobs on a remote GPU node through `core.ssh_async` + slurm (setup, ALAMODE build with conda + MKL, pitfalls, CPU vs GPU timings): `docs/remote_gpu_computer.md`.  A Claude Code skill summarizing the plugin, the drivers and the pitfalls is in `.claude/skills/aiida-alamode/SKILL.md`.
+Replace `--dielectric-model anisonet` by `--dielectric 6.7` to use a literature value instead.
+
+### Example 2: Python, ε∞ only
+
+```python
+from aiida.engine import submit
+from aiida.orm import Dict, StructureData, load_code
+from aiida.plugins import CalculationFactory
+
+calc = submit(CalculationFactory("alamode.epsinf_ase"),
+              code=load_code("ase_runner@<computer>"),
+              structure=StructureData(ase=atoms),                  # primitive cell
+              dielectric_model=Dict({"name": "anisonet"}),
+              metadata={"options": {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1}}})
+# when finished:
+eps_inf = calc.outputs.dielectric_tensor.get_array("epsilon_inf")  # (3, 3)
+```
+
+### Example 3: Python, the whole BORNINFO
+
+```python
+from aiida.plugins import WorkflowFactory
+
+code = load_code("ase_runner@<computer>")
+options = Dict({"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1}})
+wc = submit(WorkflowFactory("alamode.borninfo"),
+            structure=prim,                                        # the same StructureData given to anphon
+            bec={"code": code, "calculator": Dict({"name": "sevennet-polar"}), "options": options},
+            epsinf={"code": code, "dielectric_model": Dict({"name": "anisonet"}), "options": options})
+# or, instead of epsinf:  dielectric=List([6.7])
+# outputs: born_effective_charges, dielectric_tensor, borninfo (SinglefileData for anphon), results
+```
+
+The engines are chosen by `bec_plugin` (default `alamode.bec_ase`) and `epsinf_plugin`
+(default `alamode.epsinf_ase`).
+
+### Pitfalls
+
+- **Atom order.** BORNINFO lists Z\* in the order of the anphon `&position` block, which is the atom order of the structure. It is not the KD order of `&general`, which is sorted by atomic number. Give the Born-charge job the same StructureData as anphon.
+- **NONANALYTIC = 3 (Ewald) needs a clean supercell.** `ase.build.make_supercell` may put the atoms of the first translation at another periodic image. Harmonic bands still look right, but the Ewald correction becomes badly wrong. Build supercells with `aiida_alamode.io.supercell.make_diagonal_supercell`.
+- **AnisoNet normalisation.** The upstream prediction notebook recomputes `num_neighbors` from the structures being predicted, so one structure gives different values in different batches. The runner fixes it at the training-set value 34.956847.
+- **Out-of-distribution materials.** Z\* of TiO₂ violates the acoustic sum rule by 0.3 to 1.2 e before it is enforced, and the values are less reliable. SevenNet-Polar has not learned Zn, Si or Te.
+
+`example/test_epsinf.py --computer <label>` checks ε∞ on nine materials against literature values.
+Details and more materials: `docs/born_effective_charges.md`.
+
+## Results of the examples
+
+All numbers are from MatterSim forces, SevenNet-Polar (PS-M checkpoint) Z\* and AnisoNet ε∞, run on
+2026-09-23.  CPU and GPU runs agree to the third decimal.
+
+### What each example tests
+
+| material | stable in the harmonic approximation? | physics tested | key result |
+|---|---|---|---|
+| Si | yes | dispersion, 3-phonon scattering, κ | κ(300 K) = 149 W/mK (exp. about 150, tutorial DFT 113) |
+| PbTe | yes, soft TO | LO-TO splitting, non-analytic correction | Γ TO 1.57 THz (tutorial DFT 1.26) |
+| BaHfO₃ | yes | Z\* and ε∞ from ML, κ, SCPH | κ(300 K) = 8.3 W/mK; stays cubic up to 700 K |
+| BaZrO₃ | R-point rotation unstable | LO-TO with ML Z\* and ε∞ | R mode −1.38 THz, unrelated to the correction |
+| m-ZrO₂ | yes | low-symmetry Z\*, full cell relaxation | weak imaginary mode (−0.8 THz) removed by NONANALYTIC 3 |
+| BaTiO₃ | Γ-point unstable | ferroelectric transition, SCPH relaxation | tetragonal up to 350 K, cubic from 400 K (exp. 393 K) |
+| ZnO | yes | anisotropic thermal expansion, QHA | strain at 300 K: u_xx = u_zz = 0.0032 (0.0025 at 0 K from zero-point motion) |
+
+### Born effective charges Z\* (diagonal, after the sum rule, in e)
+
+| material | A / B site | O (⊥ / ∥ to the B–O bond) | DFT literature |
+|---|---|---|---|
+| cubic BaTiO₃ | Ba 2.72 / Ti 7.72 | −2.15 / −6.14 | 2.75 / 7.16 / −2.11 / −5.69 |
+| BaZrO₃ | Ba 2.72 / Zr 5.68 | −1.98 / −4.44 | 2.7 / 6.1 / −2.0 / −4.8 |
+| BaHfO₃ | Ba 2.74 / Hf 5.42 | −1.99 / −4.19 | none found |
+| m-ZrO₂ | Zr 5.54 / 5.44 / 5.01 | −2.5 to −2.8 (2 sites) | Zr 5.4 to 5.7 / O −2.3 to −3.2 |
+| rutile TiO₂ | Ti 6.8 / 6.8 / 7.8 | −3.45 / −3.45 / −4.08 | 6.3 / 6.3 / 7.5 |
+
+### High-frequency dielectric constant ε∞ (AnisoNet, eigenvalues)
+
+| material | AnisoNet | literature |
+|---|---|---|
+| Si | 13.14 | exp. 11.7 |
+| MgO | 3.13 | exp. 3.0 (static ε₀ 9.8) |
+| NaCl | 2.67 | exp. 2.3 |
+| BaHfO₃ | 4.69 | 4.6 to 4.9 |
+| BaZrO₃ | 4.93 | 4.9 |
+| cubic BaTiO₃ | 6.30 | 5.9 to 6.7 (LDA) |
+| cubic SrTiO₃ | 6.55 | exp. 5.2, DFT 6.6 |
+| m-ZrO₂ | 5.16 / 5.69 / 5.76 | 4.7 to 5.2 |
+| rutile TiO₂ | 7.71 / 7.71 / 9.26 | 6.8 / 6.8 / 8.4 |
+
+The predictions lie within 10 to 20 % of the literature and reproduce the direction of the anisotropy.
+
+### Effect of BORNINFO on the phonons (NONANALYTIC 0 → 3)
+
+| material | highest LO at Γ [THz] | soft mode at Γ | note |
+|---|---|---|---|
+| cubic BaTiO₃ | 13.5 → 19.7 | −6.96 ×3 → −6.96 ×2 + LO 4.89 | the ferroelectric instability remains |
+| BaHfO₃ | 14.7 → 18.3 | none | no imaginary mode anywhere (R point 2.2 THz) |
+| BaZrO₃ | 14.3 → 19.0 | none | |
+| m-ZrO₂ | 21.6 → 23.8 | none | |
+
+## Other changes since v0.9
+
+- `alamode.alm_cv`: elastic-net cross validation, `results['alpha_min']`.
+- The anphon CalcJob accepts `borninfo`, `fc2xml`, `extra_files` and any `MODE` (SCPH, QHA). The `param` sections are written verbatim, and all `{prefix}.*` files come back in `output_folder`.
+- `param['kpoint']` overrides the automatic band path, and `param['interaction']` (NBODY) is kept.
+- Fixed: the QE / VASP structure writers of `displace_pf` / `extract`, the cutoff dropped by `alm_opt`, NAT in anphon inputs, the `nsample gridtype` arguments of `analyze_phonons` (ALAMODE ≥ 1.5), `withmpi` on aiida-core ≥ 2.3.
+- aiida-lammps is optional. `alm_ALM` and `check_convergence_freeenergy` still need the `alm` Python package.
+
+## Further documentation
+
+| file | contents |
+|---|---|
+| `docs/born_effective_charges.md` | Z\* and ε∞ in detail, the BaHfO₃ chain, more results |
+| `docs/examples_workflow.md` | what each driver does, step by step, and the provenance graph |
+| `docs/examples_materials.md` | why each material was chosen and what it tests |
+| `docs/remote_gpu_computer.md` | running on a remote GPU node through `core.ssh_async` + slurm, CPU vs GPU timings |
+| `docs/slurm_invalidaccount.md` | the slurm InvalidAccount message and its fixes |
+| `.claude/skills/aiida-alamode/SKILL.md` | a Claude Code skill summarizing the plugin, the drivers and the pitfalls |
