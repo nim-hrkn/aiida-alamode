@@ -28,7 +28,7 @@ done
 ペロブスカイトの学習データは ABO₃（A = Ba, Ca, Sr, Pb、B = Ti, Zr, Hf）の置換系 1,224 構造で、
 PbTe のような Te を含む系は扱えない。
 
-`aiida_alamode.mattersim_runner.CALCULATORS` の `sevennet-polar` は既定で
+`aiida_alamode.ase_runner.CALCULATORS` の `sevennet-polar` は既定で
 `~/models/sevennet-polar/SevenNet-PS-M.pth`（環境変数 `SEVENNET_POLAR_MODEL` で変更）を読む。
 
 ## CalcJob `alamode.mattersim_bec`（`MattersimBecCalculation`）

@@ -46,7 +46,8 @@
             "alamode.mattersim_bec = aiida_alamode.calculations.mattersim_calcjob: MattersimBecParser"
         ],
         "console_scripts": [
-            "alamode-mattersim = aiida_alamode.mattersim_runner:main"
+            "alamode-ase-runner = aiida_alamode.ase_runner:main",
+            "alamode-mattersim = aiida_alamode.ase_runner:main"
         ]
     },
     "install_requires": [

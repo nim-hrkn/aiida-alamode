@@ -7,9 +7,9 @@ the latest version is v0.9_free_energy_convergence
 ## v0.10: MatterSim / ASE-calculator replacement of the force calculations
 
 The forces of the displaced structures can be computed with an ASE calculator (MatterSim by default;
-MACE, CHGNet, SevenNet, ORB, EMT, ... through `aiida_alamode.mattersim_runner.CALCULATORS`)
+MACE, CHGNet, SevenNet, ORB, EMT, ... through `aiida_alamode.ase_runner.CALCULATORS`)
 instead of DFT or LAMMPS.  Install with `pip install -e .[mattersim]` and set up a code for the
-console script `alamode-mattersim` (e.g. `verdi code create core.code.installed --label mattersim
+console script `alamode-ase-runner` (alias `alamode-mattersim`) (e.g. `verdi code create core.code.installed --label mattersim
 --computer <computer> --filepath-executable $(which alamode-mattersim) --default-calc-job-plugin alamode.mattersim`).
 
 CalcJobs (`aiida_alamode.calculations.mattersim_calcjob`):

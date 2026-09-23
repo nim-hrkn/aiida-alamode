@@ -32,7 +32,7 @@ MatterSim / SevenNet-Polar のジョブを投げるための手順と、実際�
    `pip install mattersim`、SevenNet-Polar はソースを送って `pip install ./SevenNet-Polar`（git が無い場合）。
    checkpoint は `~/models/sevennet-polar/` に置く（`SEVENNET_POLAR_MODEL` で変更可）。
 4. **aiida-alamode の runner**：GPU ノードには AiiDA は不要。`pip install --no-deps <aiida-alamode のソース>` で
-   console script `alamode-mattersim` だけを使う（`aiida_alamode.mattersim_runner` は aiida を import しない）。
+   console script `alamode-ase-runner`（別名 `alamode-mattersim`）だけを使う（`aiida_alamode.ase_runner` は aiida を import しない）。
 5. `~/aiida_run` を作る。slurm の GPU は `gres.conf` に登録されていること（`sinfo -o "%G"` で `gpu:1` が見える）。
 
 ## ホスト側の登録

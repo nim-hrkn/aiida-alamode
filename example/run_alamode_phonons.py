@@ -19,7 +19,7 @@ usage:
     python run_alamode_phonons.py --preset Si            # alamode tutorial settings (2x2x2 conventional, cubic IFCs, RTA)
     python run_alamode_phonons.py --structure Si.cif --supercell 2 2 2 --cubic --cubic-cutoff 7.5
     python run_alamode_phonons.py --preset Si --calculator mace --calculator-kwargs '{"model": "medium"}'
-    python run_alamode_phonons.py --preset Si --calculator emt   # any name in aiida_alamode.mattersim_runner.CALCULATORS
+    python run_alamode_phonons.py --preset Si --calculator emt   # any name in aiida_alamode.ase_runner.CALCULATORS
 
 codes: alm, anphon, displace, analyze_phonons, mattersim @<computer>.  verdi daemon and RabbitMQ must be running.
 
@@ -517,7 +517,7 @@ def parse_args():
     parser.add_argument("--ref-xml", help="reference IFC xml (e.g. DFT) to compare with, through the same anphon step")
     parser.add_argument("--ref-label", help="legend label of the reference")
     parser.add_argument("--calculator", default="mattersim",
-                        help="ASE calculator name (aiida_alamode.mattersim_runner.CALCULATORS: mattersim, mace, chgnet, sevennet, orb, emt, ...)")
+                        help="ASE calculator name (aiida_alamode.ase_runner.CALCULATORS: mattersim, mace, chgnet, sevennet, orb, emt, ...)")
     parser.add_argument("--calculator-kwargs", default="{}", help='JSON kwargs of the calculator, e.g. \'{"model": "medium"}\'')
     parser.add_argument("--calc-label", help="legend label of the calculator")
     parser.add_argument("--computer", default=os.environ.get("AIIDA_ALAMODE_COMPUTER", "localhost"),

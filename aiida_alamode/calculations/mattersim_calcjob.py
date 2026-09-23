@@ -14,7 +14,7 @@
 """
 ASE-calculator (MatterSim by default) replacement of the DFT / LAMMPS force calculations.
 
-The code is the console script ``alamode-mattersim`` (aiida_alamode.mattersim_runner), which runs
+The code is the console script ``alamode-ase-runner`` (alias ``alamode-mattersim``; aiida_alamode.ase_runner), which runs
 inside the scheduler job and reads a json job file.
 
 - MattersimForcesCalculation: energy, forces, stress of displaced structures (TrajectoryData).
@@ -27,7 +27,7 @@ inside the scheduler job and reads a json job file.
   of a cell -> elastic_constants.in, strain_force.in for the anphon QHA structural optimization.
 
 The ``calculator`` input selects the ASE calculator, e.g. {"name": "mace", "kwargs": {"model": "medium"}};
-see mattersim_runner.CALCULATORS.  Without it, ``model`` / ``device`` select MatterSim.
+see ase_runner.CALCULATORS.  Without it, ``model`` / ``device`` select MatterSim.
 
 If 'cwd' is given, the retrieved files are saved in that directory (as the other alamode CalcJobs).
 """
@@ -83,7 +83,7 @@ class MattersimBaseCalculation(AlamodeBaseCalculation):
         spec.input("device", valid_type=Str, default=lambda: Str("auto"), help="auto, cpu or cuda")
         spec.input("calculator", valid_type=Dict, required=False,
                    help='ASE calculator, e.g. {"name": "mace", "kwargs": {"model": "medium"}}; '
-                        'see mattersim_runner.CALCULATORS. Overrides model / device.')
+                        'see ase_runner.CALCULATORS. Overrides model / device.')
         spec.inputs['metadata']['options']['parser_name'].default = cls._PARSER
         spec.inputs['metadata']['options']['input_filename'].default = _JOB_FILENAME
         spec.inputs['metadata']['options']['output_filename'].default = 'mattersim.out'
