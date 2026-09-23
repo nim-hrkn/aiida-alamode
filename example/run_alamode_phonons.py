@@ -749,10 +749,12 @@ def main():
     for tag, structure, fcsxml, cwd in rta_targets:
         node = bank.load(f"rta_{tag}")
         if node is None:
+            general = {"EMIN": 0, "EMAX": args.emax, "DELTA_E": args.delta_e}
+            if borninfo is not None:   # LO-TO correction in the RTA too (the largest NONANALYTIC asked for)
+                general["NONANALYTIC"] = max(args.nonanalytic)
             node = submit_anphon(code_anphon, structure, fcsxml, "RTA", Str(f"{name}_cubic"), Str(cwd), norder=2,
-                                 qmesh=rta_qmesh, kappa_spec=1,
-                                 param=Dict({"general": {"EMIN": 0, "EMAX": args.emax, "DELTA_E": args.delta_e}}),
-                                 options=opt_serial)
+                                 qmesh=rta_qmesh, kappa_spec=1, param=Dict({"general": general}),
+                                 borninfo=borninfo if tag == "ms" else None, options=opt_serial)
             print(f"submitted rta_{tag}: {node}")
             pending.append((f"rta_{tag}", node))
         rta[tag] = node

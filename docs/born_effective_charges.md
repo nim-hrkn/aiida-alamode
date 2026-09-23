@@ -113,3 +113,27 @@ python run_alamode_phonons.py --structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --n
   Γ、X、M 点は安定で、LO-TO 分裂の検証には支障ない。有限温度の安定化は `run_alamode_scph.py` で確認できる。
 - BaHfO₃ は Γ-X-M-Γ-R-X-M-R の全経路で虚数なし。NA3 で Γ 点の最高 LO が 14.5 → 19 THz 程度に上がる。
 - Z* は DFT の文献値（BaZrO₃: 2.7 / 6.1 / −2.0 / −4.8）と近く、ASR 残差は小さい。ε∞ = 4.9 は文献値。
+
+## 例：BaHfO₃ を Z* → フォノン → 熱伝導率 → SCPH まで通す（`example/run_BaHfO3_example.sh`）
+
+```
+COMMON="--structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 --borninfo-calculator sevennet-polar --dielectric 4.9 --njobs 2"
+python run_alamode_phonons.py $COMMON --nonanalytic 0 3 --emax 900 --cubic --cubic-cutoff 8.0 --cubic-mag 0.04 --rta-qmesh 10 --root run_v010
+python run_alamode_scph.py $COMMON --no-ref --root run_v010_scph
+```
+
+すべての工程が AiiDA のプロセスになる（構造の変換と図だけ calcfunction）:
+
+| 工程 | プロセス | 結果（2026-09-23、MatterSim + SevenNet-PS-M） |
+|---|---|---|
+| 体積緩和 | CalcJob alamode.mattersim_relax | a = 4.204 Å（実験 4.171） |
+| 調和 IFC | alm_suggest → displace_pf → force_simulator_mattersim → alm_opt | 4 変位、フィッティング誤差 1.6 % |
+| Z*、BORNINFO | CalcJob alamode.mattersim_bec | Ba 2.74、Hf 5.42、O −1.99 / −4.19 |
+| バンド、DOS | CalcJob alamode.anphon（NA0、NA3） | 虚数なし。Γ の最高 LO 14.7 → 18.3 THz |
+| 立方 IFC | alm_suggest（NORDER 2、8 Bohr）→ displace_pf → forces → alm_opt（FC2XML 固定） | 78 変位、誤差 1.0 % |
+| κ（RTA、10³、NONANALYTIC 3） | CalcJob alamode.anphon + analyze_phonons ×3 | κ(300 K) = 8.3 W/mK、κ(100 K) 24、κ(1000 K) 2.5、L₅₀ = 15 nm |
+| 非調和 IFC | mattersim_md（300 K、80 構造）→ forces → alm_cv → alm_opt | α_min = 6.3×10⁻⁷、自由パラメータ 1191 |
+| SCPH + RELAX_STR 1（50〜700 K、NONANALYTIC 3） | CalcJob alamode.anphon | 全温度で立方のまま（B サイト変位 1e-5 Bohr = 種の値）、極性相なし |
+
+図: `run_v010/BaHfO3/BaHfO3_phband_phdos.png`、`BaHfO3_kappa.png`、`run_v010_scph/BaHfO3/BaHfO3_scph_relax.png`。
+BaTiO₃（同じ手順で 350〜400 K に立方 → 正方転移）との対比になる。

@@ -50,7 +50,7 @@ def cubic_batio3(a=3.9855493692679786):
 
 
 @calcfunction
-def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData, prefix: Str,
+def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData, prefix: Str, structure: StructureData,
                 ref_atom_disp: SinglefileData = None, ref_thermo: SinglefileData = None) -> dict:
     """atomic displacements (z) and free energies vs T from the SCPH RELAX_STR run; tutorial reference dashed."""
     def load(text):
@@ -63,9 +63,11 @@ def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData,
     disp = disp[np.argsort(disp[:, 0])]
     thermo = thermo[np.argsort(thermo[:, 0])]
     nat = (disp.shape[1] - 1) // 3
+    symbols = [site.kind_name for site in structure.sites]   # ABO3: A, B, O(1), O(2), O(3)
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
     ax = axes[0]
-    labels = {0: "Ba(z)", 1: "Ti(z)", 2: "O(1,2, z)", 4: "O(3, z)"}
+    labels = {0: f"{symbols[0]}(z)", 1: f"{symbols[1]}(z)", 2: f"{symbols[2]}(1,2, z)", 4: f"{symbols[4]}(3, z)"} if nat >= 5 \
+        else {i: f"{sym}(z)" for i, sym in enumerate(symbols)}
     for i, lab in labels.items():
         if i < nat:
             ax.plot(disp[:, 0], disp[:, 3 + 3 * i], color=f"C{i}", lw=1.5, label=f"{lab} {calc_label.value}")
@@ -96,11 +98,12 @@ def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData,
     target = os.path.join(cwd.value, f"{name.value}_scph_relax.png")
     fig.savefig(target, dpi=150)
     plt.close(fig)
-    # transition temperature: the highest T whose Ti displacement is a sizable fraction of the
+    # transition temperature: the highest T whose B-site displacement is a sizable fraction of the
     # low-T (saturated) value; the seed displacement of the high-symmetry phase is ~1e-3 Bohr
     ti_z = np.abs(disp[:, 6]) if nat > 1 else np.zeros(len(disp))
     polar = disp[ti_z > max(0.005, 0.25 * ti_z.max()), 0]
-    summary = {"T_K": disp[:, 0].tolist(), "Ti_z_Bohr": disp[:, 6].tolist() if nat > 1 else [],
+    summary = {"T_K": disp[:, 0].tolist(), "B_site": symbols[1] if nat > 1 else None,
+               "Ti_z_Bohr": disp[:, 6].tolist() if nat > 1 else [],
                "T_polar_max_K": float(polar.max()) if len(polar) else None,
                "F_total_meV": (thermo[:, 5] * RY_TO_MEV).tolist()}
     return {"img_file": SinglefileData(target), "summary": Dict(summary)}
@@ -145,6 +148,12 @@ def parse_args():
     parser.add_argument("--init-disp", default="0 0 1.5e-5; 0 0 2.5e-3; 0 0 -1.9e-3; 0 0 -1.9e-3; 0 0 -3.8e-3",
                         help="&displace initial displacements per atom [Bohr], ';' separated (tutorial values)")
     parser.add_argument("--no-ref", action="store_true", help="do not plot the tutorial's DFT reference")
+    parser.add_argument("--borninfo", help="BORNINFO file (dielectric tensor and Born charges of the primitive cell)")
+    parser.add_argument("--borninfo-calculator", metavar="NAME",
+                        help="compute the Born charges with this calculator (alamode.mattersim_bec, e.g. sevennet-polar)")
+    parser.add_argument("--borninfo-kwargs", default="{}", help="JSON kwargs of --borninfo-calculator")
+    parser.add_argument("--dielectric", type=float, nargs="+", metavar="E", help="dielectric tensor for --borninfo-calculator")
+    parser.add_argument("--nonanalytic", type=int, default=3, help="NONANALYTIC of the SCPH run when Born charges are given")
     parser.add_argument("--computer", default="mygarden5")
     parser.add_argument("--cores", type=int, default=4)
     parser.add_argument("--njobs", type=int, default=2)
@@ -153,6 +162,7 @@ def parse_args():
     args = parser.parse_args()
     args.root = os.path.abspath(args.root)
     args.calculator_kwargs = json.loads(args.calculator_kwargs)
+    args.borninfo_kwargs = json.loads(args.borninfo_kwargs)
     if args.calc_label is None:
         args.calc_label = "MatterSim-v1.0.0-1M" if args.calculator == "mattersim" and not args.calculator_kwargs \
             else args.calculator + ("" if not args.calculator_kwargs else " " + json.dumps(args.calculator_kwargs))
@@ -266,12 +276,29 @@ def main():
     print("anharmonic alm opt:", alm_opt_a.outputs.results["optimization"])
     fcsxml = alm_opt_a.outputs.input_ANPHON
 
+    # --- Born charges (optional): BORNINFO file or alamode.mattersim_bec on the primitive cell
+    borninfo = None
+    if args.borninfo:
+        borninfo = run_cached(bank, "borninfo", lambda: SinglefileData(os.path.abspath(args.borninfo)))
+    elif args.borninfo_calculator:
+        bec_calculator = run_cached(bank, "bec_calculator",
+                                    lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
+        extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
+        bec = run_cached(bank, "bec", lambda: submit_mattersim("mattersim_bec", code_mattersim, prim, bec_calculator, opt_serial,
+                                                              cwd=Str(dirs["scph"]), **extra))
+        r = bec.outputs.results
+        print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})
+        if "borninfo" not in bec.outputs:
+            raise SystemExit("no dielectric tensor: give --dielectric")
+        borninfo = bec.outputs.borninfo
+
     # --- SCPH with structural relaxation (tutorial 7.4)
     a_prim = prim.cell_lengths[0] / BOHR
     disp_lines = ["0", f"{a_prim:.10f}", "1.0 0.0 0.0", "0.0 1.0 0.0", "0.0 0.0 1.0"]
     disp_lines += [" ".join(x.split()) for x in args.init_disp.split(";")]
     param_scph = Dict({
-        "general": {"TMIN": args.tmin, "TMAX": args.tmax, "DT": args.dt},
+        "general": {"TMIN": args.tmin, "TMAX": args.tmax, "DT": args.dt,
+                    **({"NONANALYTIC": args.nonanalytic} if borninfo is not None else {})},
         "scph": {"SELF_OFFDIAG": 1, "MAXITER": args.maxiter, "MIXALPHA": args.mixalpha,
                  "KMESH_INTERPOLATE": " ".join([str(args.kmesh_interpolate)] * 3),
                  "KMESH_SCPH": " ".join([str(args.kmesh_scph)] * 3), "RELAX_STR": 1},
@@ -283,7 +310,8 @@ def main():
     prefix_scph = Str(f"{name}_scph")
     scph = run_cached(bank, "scph",
                       lambda: submit_anphon(code_anphon, prim, fcsxml, "SCPH", prefix_scph, Str(dirs["scph"]), norder=3,
-                                            qmesh=List([args.qmesh] * 3), param=param_scph, options=opt_anphon))
+                                            qmesh=List([args.qmesh] * 3), param=param_scph, borninfo=borninfo,
+                                            options=opt_anphon))
     print("SCPH outputs:", scph.outputs.results["files"])
 
     # --- figure
@@ -295,10 +323,10 @@ def main():
                                         lambda: SinglefileData(os.path.join(REF_DIR, "cBTO222_scph.scph_thermo")))
     figure = run_cached(bank, "figure",
                         lambda: scph_figure(Str(root), Str(name), Str(args.calc_label), scph.outputs.output_folder,
-                                            prefix_scph, **refs)["img_file"])
+                                            prefix_scph, prim, **refs)["img_file"])
     summary = figure.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("figure:", os.path.join(root, figure.filename))
-    print("Ti z displacement [Bohr] vs T [K]:")
+    print(f"{summary['B_site']} z displacement [Bohr] vs T [K]:")
     for t, u in zip(summary["T_K"], summary["Ti_z_Bohr"]):
         print(f"  {t:6.0f}  {u: .5f}")
     print("highest T with a polar (tetragonal) structure:", summary["T_polar_max_K"], "K")
