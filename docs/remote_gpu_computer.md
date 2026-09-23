@@ -64,7 +64,7 @@ PRE="export PATH=/home/<user>/miniforge3/envs/alamode/bin:\$PATH"
 for spec in "alm:alamode.alm_suggest:/home/<user>/bin/alamode/alm" "anphon:alamode.anphon:/home/<user>/bin/alamode/anphon" \
             "displace:alamode.displace_pf:/home/<user>/bin/alamode/displace.py" \
             "analyze_phonons:alamode.analyze_phonons:/home/<user>/bin/alamode/analyze_phonons" \
-            "mattersim:alamode.mattersim:/home/<user>/miniforge3/envs/alamode/bin/alamode-mattersim"; do
+            "mattersim:alamode.forces_ase:/home/<user>/miniforge3/envs/alamode/bin/alamode-mattersim"; do
   IFS=: read label plugin exe <<< "$spec"
   verdi code create core.code.installed -n --label $label --computer gpu-node-async --default-calc-job-plugin $plugin \
       --filepath-executable $exe --prepend-text "$PRE"

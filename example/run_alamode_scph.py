@@ -2,7 +2,7 @@
 anharmonic IFCs from MD + random displacements + elastic-net CV, then SCPH structural optimization.
 
     relax (volume)  ->  primitive / 2x2x2 supercell  ->  harmonic IFCs (alm_suggest / displace_pf / forces / alm_opt)
-      ->  MD at T (mattersim_md: sampled snapshots + random 0.04 A)  ->  forces + DFSET (force_simulator_mattersim)
+      ->  MD at T (md_ase: sampled snapshots + random 0.04 A)  ->  forces + DFSET (force_simulator_mattersim)
       ->  alm cv (alm_cv: NORDER = 3, NBODY 2 3 3, LASSO, CV = 4)  ->  alm opt (L1_ALPHA of the minimum CV score)
       ->  anphon SCPH + RELAX_STR = 1 (T = TMIN..TMAX)  ->  figure (atomic displacements, free energies)
 
@@ -28,7 +28,7 @@ from ase import Atoms
 
 from run_alamode_phonons import (NodeBank, wait, run_cached, read_structure, find_primitive, idealize_structure,
                                  make_supercell_structure, submit_alm, submit_displace, submit_forces, submit_anphon,
-                                 submit_mattersim, HERE, ALAMODE_TEST, BOHR)
+                                 submit_ase, HERE, ALAMODE_TEST, BOHR)
 from aiida.engine import calcfunction
 from aiida.orm import load_code, Str, Dict, Float, Int, List, Bool
 from aiida.plugins import DataFactory
@@ -150,7 +150,7 @@ def parse_args():
     parser.add_argument("--no-ref", action="store_true", help="do not plot the tutorial's DFT reference")
     parser.add_argument("--borninfo", help="BORNINFO file (dielectric tensor and Born charges of the primitive cell)")
     parser.add_argument("--borninfo-calculator", metavar="NAME",
-                        help="compute the Born charges with this calculator (alamode.mattersim_bec, e.g. sevennet-polar)")
+                        help="compute the Born charges with this calculator (alamode.bec_ase, e.g. sevennet-polar)")
     parser.add_argument("--borninfo-kwargs", default="{}", help="JSON kwargs of --borninfo-calculator")
     parser.add_argument("--dielectric", type=float, nargs="+", metavar="E", help="dielectric tensor for --borninfo-calculator")
     parser.add_argument("--nonanalytic", type=int, default=3, help="NONANALYTIC of the SCPH run when Born charges are given")
@@ -215,7 +215,7 @@ def main():
         unit = unit0
     else:
         relax = run_cached(bank, "relax_volume",
-                           lambda: submit_mattersim("mattersim_relax", code_mattersim, unit0, calculator, opt_serial,
+                           lambda: submit_ase("relax_ase", code_mattersim, unit0, calculator, opt_serial,
                                                     cwd=Str(dirs["relax"]), hydrostatic_strain=Bool(True)))
         unit = relax.outputs.structure
         print(f"relaxed cell [A]: {np.round(relax.outputs.results['cell_lengths'], 5)} (input {np.round(unit0.cell_lengths, 5)})")
@@ -246,7 +246,7 @@ def main():
     # --- MD + random displacements (tutorial step 1-2: AIMD, displace.py -md --random)
     cwd_md = Str(dirs["md"])
     md = run_cached(bank, "md",
-                    lambda: submit_mattersim("mattersim_md", code_mattersim, supercell, calculator, opt_calc, cwd=cwd_md,
+                    lambda: submit_ase("md_ase", code_mattersim, supercell, calculator, opt_calc, cwd=cwd_md,
                                              temperature=Float(args.md_temperature), timestep=Float(args.md_timestep),
                                              nsteps=Int(args.md_steps), sample=Str(args.md_sample),
                                              random_mag=Float(args.random_mag), random_seed=Int(args.random_seed)))
@@ -282,7 +282,7 @@ def main():
     print("anharmonic alm opt:", alm_opt_a.outputs.results["optimization"])
     fcsxml = alm_opt_a.outputs.input_ANPHON
 
-    # --- Born charges (optional): BORNINFO file or alamode.mattersim_bec on the primitive cell
+    # --- Born charges (optional): BORNINFO file or alamode.bec_ase on the primitive cell
     borninfo = None
     if args.borninfo:
         borninfo = run_cached(bank, "borninfo", lambda: SinglefileData(os.path.abspath(args.borninfo)))
@@ -290,7 +290,7 @@ def main():
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
         extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
-        bec = run_cached(bank, "bec", lambda: submit_mattersim("mattersim_bec", code_mattersim, prim, bec_calculator, opt_serial,
+        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_mattersim, prim, bec_calculator, opt_serial,
                                                               cwd=Str(dirs["scph"]), **extra))
         r = bec.outputs.results
         print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})

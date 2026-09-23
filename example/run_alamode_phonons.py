@@ -2,8 +2,8 @@
 
 Input: a structure file readable by ASE (CIF, POSCAR, ...), the supercell size, and optionally the calculator.
 
-    relax (alamode.mattersim_relax)  ->  primitive cell / supercell (calcfunctions)  ->  alm suggest (alamode.alm_suggest)
-      ->  displace.py (alamode.displace_pf)  ->  forces + DFSET (alamode.force_simulator_mattersim)
+    relax (alamode.relax_ase)  ->  primitive cell / supercell (calcfunctions)  ->  alm suggest (alamode.alm_suggest)
+      ->  displace.py (alamode.displace_pf)  ->  forces + DFSET (alamode.forces)
       ->  alm opt (alamode.alm_opt)  ->  anphon band / DOS (alamode.anphon)
       [->  the same anphon step on reference IFCs  ->  comparison figure]
     --cubic: alm suggest NORDER=2  ->  displace  ->  forces / DFSET  ->  alm opt (FC2XML fixed)
@@ -266,12 +266,12 @@ def submit_displace(code, structure, pattern, mag, norder, cwd=None, prefix="dis
 
 
 def submit_forces(code, structures, structure_org, calculator, njobs, options, cwd=None, subtract_offset=False):
-    """forces of the displaced structures and the DFSET (alamode.force_simulator_mattersim)"""
+    """forces of the displaced structures and the DFSET (alamode.forces)"""
     inputs = dict(code=code, structures=structures, structure_org=structure_org, calculator=calculator,
                   njobs=Int(njobs), options=Dict(options), subtract_offset=Bool(subtract_offset))
     if cwd is not None:
         inputs["cwd"] = cwd
-    return submit(WorkflowFactory("alamode.force_simulator_mattersim"), **inputs)
+    return submit(WorkflowFactory("alamode.forces"), **inputs)
 
 
 def submit_anphon(code, structure, fcsxml, mode, prefix, cwd=None, norder=1, phonons_mode=None, qmesh=None,
@@ -303,8 +303,8 @@ def submit_anphon(code, structure, fcsxml, mode, prefix, cwd=None, norder=1, pho
     return submit(builder)
 
 
-def submit_mattersim(entry, code, structure, calculator, options, cwd=None, **inputs):
-    """alamode.mattersim_relax / mattersim_md / mattersim_elastic of a structure"""
+def submit_ase(entry, code, structure, calculator, options, cwd=None, **inputs):
+    """alamode.relax_ase / md_ase / elastic_ase / bec_ase of a structure (ASE-calculator engine)"""
     builder = CalculationFactory(f"alamode.{entry}").get_builder()
     builder.code = code
     builder.structure = structure
@@ -501,7 +501,7 @@ def parse_args():
     parser.add_argument("--nonanalytic", type=int, nargs="+", help="anphon NONANALYTIC values (default 0; 3 needs --borninfo)")
     parser.add_argument("--borninfo", help="BORNINFO file (dielectric tensor and Born charges of the primitive cell, in the spglib species order)")
     parser.add_argument("--borninfo-calculator", metavar="NAME",
-                        help="compute the Born charges of the primitive cell with this calculator instead (alamode.mattersim_bec; "
+                        help="compute the Born charges of the primitive cell with this calculator instead (alamode.bec_ase; "
                              "e.g. sevennet-polar). Needs --dielectric unless the model gives the dielectric tensor.")
     parser.add_argument("--borninfo-kwargs", default="{}", help="JSON kwargs of --borninfo-calculator")
     parser.add_argument("--dielectric", type=float, nargs="+", metavar="E",
@@ -609,7 +609,7 @@ def main():
         unit = unit0
     else:
         relax = run_cached(bank, f"relax_{args.relax}",
-                           lambda: submit_mattersim("mattersim_relax", code_mattersim, unit0, calculator, opt_serial,
+                           lambda: submit_ase("relax_ase", code_mattersim, unit0, calculator, opt_serial,
                                                     cwd=Str(dirs["relax"]), hydrostatic_strain=Bool(args.relax == "volume")))
         unit = relax.outputs.structure
         r = relax.outputs.results
@@ -654,7 +654,7 @@ def main():
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
         extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
-        bec = run_cached(bank, "bec", lambda: submit_mattersim("mattersim_bec", code_mattersim, prim, bec_calculator, opt_serial,
+        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_mattersim, prim, bec_calculator, opt_serial,
                                                               cwd=Str(dirs["phonons"]), **extra))
         r = bec.outputs.results
         print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})

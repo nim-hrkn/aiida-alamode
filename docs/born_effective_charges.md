@@ -31,7 +31,9 @@ PbTe のような Te を含む系は扱えない。
 `aiida_alamode.ase_runner.CALCULATORS` の `sevennet-polar` は既定で
 `~/models/sevennet-polar/SevenNet-PS-M.pth`（環境変数 `SEVENNET_POLAR_MODEL` で変更）を読む。
 
-## CalcJob `alamode.mattersim_bec`（`MattersimBecCalculation`）
+## CalcJob `alamode.bec_ase`（`AseBornChargesCalculation`、旧名 `alamode.mattersim_bec`）
+
+実装は `calculations/dielectric_calcjob.py`。力の予測（`force_calcjob.py`、`ForceCalculatorBaseCalculation`）とは別の種類の予測なので、基底は `DielectricCalculatorBaseCalculation` に分けてある（`structure`、`dielectric`、`enforce_asr` の入力と `born_effective_charges`、`borninfo` の出力はここで定義）。VASP（LEPSILON）や QE（ph.x）で Z* と ε∞ を出す CalcJob はこの基底の下に作れば anphon 側は変更なしで使える。ASE 側のエンジン共通部分は `engine_base.py` の `AseRunnerBaseCalculation`。
 
 - 入力: `structure`（基本胞。anphon の &position と同じ原子順）、`calculator`（例 `{"name": "sevennet-polar"}`）、
   `dielectric`（モデルが ε∞ を返さないときの 3×3、対角 3 成分、または等方 1 成分）、`enforce_asr`（既定 True、
@@ -126,13 +128,13 @@ python run_alamode_scph.py $COMMON --no-ref --root run_v010_scph
 
 | 工程 | プロセス | 結果（2026-09-23、MatterSim + SevenNet-PS-M） |
 |---|---|---|
-| 体積緩和 | CalcJob alamode.mattersim_relax | a = 4.204 Å（実験 4.171） |
-| 調和 IFC | alm_suggest → displace_pf → force_simulator_mattersim → alm_opt | 4 変位、フィッティング誤差 1.6 % |
-| Z*、BORNINFO | CalcJob alamode.mattersim_bec | Ba 2.74、Hf 5.42、O −1.99 / −4.19 |
+| 体積緩和 | CalcJob alamode.relax_ase | a = 4.204 Å（実験 4.171） |
+| 調和 IFC | alm_suggest → displace_pf → forces（ForcesWorkChain）→ alm_opt | 4 変位、フィッティング誤差 1.6 % |
+| Z*、BORNINFO | CalcJob alamode.bec_ase | Ba 2.74、Hf 5.42、O −1.99 / −4.19 |
 | バンド、DOS | CalcJob alamode.anphon（NA0、NA3） | 虚数なし。Γ の最高 LO 14.7 → 18.3 THz |
 | 立方 IFC | alm_suggest（NORDER 2、8 Bohr）→ displace_pf → forces → alm_opt（FC2XML 固定） | 78 変位、誤差 1.0 % |
 | κ（RTA、10³、NONANALYTIC 3） | CalcJob alamode.anphon + analyze_phonons ×3 | κ(300 K) = 8.3 W/mK、κ(100 K) 24、κ(1000 K) 2.5、L₅₀ = 15 nm |
-| 非調和 IFC | mattersim_md（300 K、80 構造）→ forces → alm_cv → alm_opt | α_min = 6.3×10⁻⁷、自由パラメータ 1191 |
+| 非調和 IFC | md_ase（300 K、80 構造）→ forces → alm_cv → alm_opt | α_min = 6.3×10⁻⁷、自由パラメータ 1191 |
 | SCPH + RELAX_STR 1（50〜700 K、NONANALYTIC 3） | CalcJob alamode.anphon | 全温度で立方のまま（B サイト変位 1e-5 Bohr = 種の値）、極性相なし |
 
 図: `run_v010/BaHfO3/BaHfO3_phband_phdos.png`、`BaHfO3_kappa.png`、`run_v010_scph/BaHfO3/BaHfO3_scph_relax.png`。

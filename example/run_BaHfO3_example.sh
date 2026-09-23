@@ -8,7 +8,7 @@ set -e
 cd "$(dirname "$0")"
 COMMON="--structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 --borninfo-calculator sevennet-polar --dielectric 4.9 --njobs 2"
 
-# 1. Z* (alamode.mattersim_bec) -> BORNINFO; harmonic phonons NONANALYTIC 0 / 3;
+# 1. Z* (alamode.bec_ase) -> BORNINFO; harmonic phonons NONANALYTIC 0 / 3;
 # 2. cubic IFCs (cutoff 8 Bohr, 0.04 A) -> anphon RTA (10x10x10, NONANALYTIC 3) -> analyze_phonons
 python run_alamode_phonons.py $COMMON --nonanalytic 0 3 --emax 900 \
     --cubic --cubic-cutoff 8.0 --cubic-mag 0.04 --rta-qmesh 10 --root run_v010

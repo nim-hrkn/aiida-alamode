@@ -12,16 +12,16 @@ instead of DFT or LAMMPS.  Install with `pip install -e .[mattersim]` and set up
 console script `alamode-ase-runner` (alias `alamode-mattersim`) (e.g. `verdi code create core.code.installed --label mattersim
 --computer <computer> --filepath-executable $(which alamode-mattersim) --default-calc-job-plugin alamode.mattersim`).
 
-CalcJobs (`aiida_alamode.calculations.mattersim_calcjob`):
+CalcJobs.  Two kinds of prediction are kept apart: *forces* (energies, forces, stresses: `calculations/force_calcjob.py`, base `ForceCalculatorBaseCalculation`) and *dielectric properties* (Born effective charges, dielectric tensor: `calculations/dielectric_calcjob.py`, base `DielectricCalculatorBaseCalculation`).  The engine can be a DFT code (VASP, Quantum ESPRESSO: to be added as subclasses with the same output ports) or a machine-learning potential through ASE (`engine_base.py`: `AseRunnerBaseCalculation`, the `alamode-ase-runner` script).  The old `alamode.mattersim*` entry points remain as aliases.
 
 | entry point | input | output |
 |---|---|---|
-| `alamode.mattersim` | `structures` (TrajectoryData) | `arrays` (energies, forces, stresses, positions, cells) |
-| `alamode.mattersim_relax` | `structure` | relaxed `structure` (volume only by default) |
-| `alamode.mattersim_md` | supercell `structure`, temperature, ... | `displaced_structures` (sampled MD snapshots + random displacements, as `displace.py -md --random`) |
-| `alamode.mattersim_elastic` | primitive `structure` | `strain_ifc_folder` (`elastic_constants.in`, `strain_force.in` for the QHA) |
+| `alamode.forces_ase` (`AseForcesCalculation`) | `structures` (TrajectoryData) | `arrays` (energies, forces, stresses, positions, cells) |
+| `alamode.relax_ase` | `structure` | relaxed `structure` (volume only by default) |
+| `alamode.md_ase` | supercell `structure`, temperature, ... | `displaced_structures` (sampled MD snapshots + random displacements, as `displace.py -md --random`) |
+| `alamode.elastic_ase` | primitive `structure` | `strain_ifc_folder` (`elastic_constants.in`, `strain_force.in` for the QHA) |
 
-The WorkChain `alamode.force_simulator_mattersim` (`ForcesMattersimWorkChain`) computes the forces of a
+The WorkChain `alamode.forces` (`ForcesWorkChain`; `forces_plugin` selects the forces CalcJob, default `alamode.forces_ase`) computes the forces of a
 TrajectoryData in `njobs` scheduler jobs and returns `arrays` and the `dfset` (List of the DFSET lines,
 Rydberg atomic units as `extract.py --QE`); `subtract_offset` subtracts the forces of the undisplaced
 cell (needed for strained cells).
@@ -48,7 +48,7 @@ python run_alamode_qha.py                            # ZnO: strained IFCs, elast
 
 ### Born effective charges with SevenNet-Polar (v0.10)
 
-`alamode.mattersim_bec` (`MattersimBecCalculation`) computes the Born effective charges of the primitive
+`alamode.bec_ase` (`AseBornChargesCalculation`; a VASP counterpart would read OUTCAR into the same `borninfo` output) computes the Born effective charges of the primitive
 cell with a calculator that provides them (`{"name": "sevennet-polar"}`, checkpoints from
 zenodo 10.5281/zenodo.21322761) and writes the BORNINFO file for anphon; the dielectric tensor comes from
 the model or the `dielectric` input.  `run_alamode_phonons.py --borninfo-calculator sevennet-polar

@@ -21,7 +21,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 - **調和 IFC の共通ステップ**。
   1. `alamode.alm_suggest`：supercell から変位パターンを求める（List として出力）。
   2. `alamode.displace_pf`：supercell を QE 形式の雛形に書き、displace.py -pf で変位構造を作り、TrajectoryData として返す。
-  3. `alamode.force_simulator_mattersim`：変位構造を njobs 個の slurm ジョブに分けて MatterSim で力を計算し、結果を結合して
+  3. `alamode.forces`（ForcesWorkChain、旧名 force_simulator_mattersim）：変位構造を njobs 個の slurm ジョブに分けて MatterSim で力を計算し、結果を結合して
      DFSET（Ry と Bohr の単位、extract.py --QE と同じ書式）を List で返す。
   4. `alamode.alm_opt`：DFSET から IFC を最小二乗で決め、anphon 用の xml を返す。
 
@@ -30,7 +30,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 任意の構造ファイルと supercell の大きさを受け取る。`--preset Si` と `--preset PbTe` は tutorial の設定。
 
 調和部分
-1. `alamode.mattersim_relax` で体積を緩和する（`--relax full` で形状と原子位置も）。Si では a = 5.464 Å になる。
+1. `alamode.relax_ase` で体積を緩和する（`--relax full` で形状と原子位置も）。Si では a = 5.464 Å になる。
 2. 基本胞と supercell を作る。Si は慣用胞の 2×2×2（64 原子）、PbTe は fcc 基本胞の 4×4×4（128 原子）。
 3. 共通ステップで調和 IFC を求める。
 4. `alamode.anphon` の phonons モードでバンド（Γ-X-Γ-L の tutorial の経路）と DOS（20×20×20）を計算する。`--nonanalytic` に
@@ -50,7 +50,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 
 1. 体積緩和、理想化、2×2×2 supercell（40 原子）。
 2. 共通ステップで調和 IFC を求める（FC2XML になる）。
-3. `alamode.mattersim_md` で 300 K の NVT（Langevin）MD を 1 fs × 5000 step 走らせる。tutorial の
+3. `alamode.md_ase` で 300 K の NVT（Langevin）MD を 1 fs × 5000 step 走らせる。tutorial の
    `displace.py -md -e 1001:5000:50 --random --mag 0.04` と同じく、50 step ごとの 80 個のスナップショットに 0.04 Å の
    ランダム変位を足し、TrajectoryData として返す。
 4. その 80 構造の力を計算して DFSET を作る。
@@ -70,7 +70,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
    CV と最適化で 3 次と 4 次の IFC を決める（cutoff は 12 と 8 Bohr）。これが FCSXML。
 4. **ひずみ下の調和 IFC**：基本胞に xx、yy、zz は 0.005、yz、zx、xy は 0.0025 の 6 種類のひずみを `strain_structure` で与え、
    それぞれ 4×4×2 の supercell で調和 IFC を求める。ひずんだ格子は平衡でないため、`subtract_offset` で無変位構造の力を差し引く。
-5. **弾性定数**：`alamode.mattersim_elastic` で基本胞のエネルギーを有限差分し、clamped-ion の 2 次（SOEC、81 成分）と
+5. **弾性定数**：`alamode.elastic_ase` で基本胞のエネルギーを有限差分し、clamped-ion の 2 次（SOEC、81 成分）と
    3 次（TOEC、729 成分）の弾性定数と、ひずみと力の結合（strain_force.in）を ALAMODE の書式で出す。
 6. `make_strain_ifc_folder` で elastic_constants.in、strain_force.in、strain_harmonic.in と 6 個の xml を一つの FolderData に
    まとめ、anphon の STRAIN_IFC_DIR として渡す。

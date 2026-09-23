@@ -21,8 +21,9 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 |---|---|---|
 | alamode.alm_suggest / alm_opt / alm_cv | alm | structure, norder, cutoff, param, dfset(List), fc2xml → pattern(List) / input_ANPHON(xml), results(alpha_min, timing) |
 | alamode.displace_pf | displace.py -pf | structure_org, pattern, mag, norder → displaced_structures(TrajectoryData) |
-| alamode.force_simulator_mattersim | 力 + DFSET | code, structures, structure_org, calculator, njobs, subtract_offset → arrays, dfset(List) |
-| alamode.mattersim{,_relax,_md,_elastic,_bec} | ASE calculator（runner は `aiida_alamode.ase_runner`、console script `alamode-ase-runner`） | structure(s), calculator Dict → arrays / structure / displaced_structures / strain_ifc_folder / borninfo |
+| alamode.forces（ForcesWorkChain、forces_plugin で CalcJob を選ぶ） | 力 + DFSET | code, structures, structure_org, calculator, njobs, subtract_offset → arrays, dfset(List) |
+| alamode.forces_ase / relax_ase / md_ase / elastic_ase（旧名 alamode.mattersim*） | 力の予測（`calculations/force_calcjob.py`、基底 ForceCalculatorBaseCalculation；ASE エンジンは `engine_base.py` の AseRunnerBaseCalculation、runner `alamode-ase-runner`。DFT 用は同じ基底の下に足す） |
+| alamode.bec_ase（旧名 alamode.mattersim_bec） | 誘電特性の予測（`calculations/dielectric_calcjob.py`、基底 DielectricCalculatorBaseCalculation；SevenNet-Polar、将来は VASP/QE） | structure(s), calculator Dict → arrays / structure / displaced_structures / strain_ifc_folder / borninfo |
 | alamode.anphon | anphon | structure(prim), fcsxml, mode(phonons/RTA/SCPH/QHA…), param, borninfo, fc2xml, extra_files → phband_file, phdos_file, kl_file, output_folder, results(timing) |
 | alamode.analyze_phonons | analyze_phonons | file_result, calc(tau/cumulative/kappa_boundary), param → *_file |
 

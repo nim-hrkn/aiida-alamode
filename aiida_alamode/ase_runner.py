@@ -23,7 +23,7 @@ usage: alamode-ase-runner job.json   (alias: alamode-mattersim)
 job.json (mode "forces", the default):
     {"files": ["disp1.pw.in", ...], "input_format": "espresso-in",
      "calculator": {"name": "mattersim", "kwargs": {"load_path": "MatterSim-v1.0.0-1M.pth", "device": "auto"}},
-     "output": "mattersim_results.json"}
+     "output": "ase_results.json"}
 
 "calculator" selects the ASE calculator:
     {"name": <one of CALCULATORS>, "kwargs": {...}}                      known calculators, or
@@ -38,7 +38,7 @@ The output json contains, for each file in the same order,
 job.json (mode "relax"): relax the cell and the positions.
     {"mode": "relax", "files": ["structure.cif"], "input_format": "cif",
      "fmax": 1e-4, "steps": 500, "hydrostatic_strain": true,
-     "model": ..., "device": ..., "output": "mattersim_results.json"}
+     "model": ..., "device": ..., "output": "ase_results.json"}
 
 The output json contains the relaxed structure in the same items as above and
     "nsteps", "converged", "initial_cell".
@@ -49,21 +49,21 @@ magnitude in a random direction is added to every atom of every sampled snapshot
     {"mode": "md", "files": ["supercell.extxyz"], "input_format": "extxyz",
      "temperature": 300.0, "timestep_fs": 1.0, "nsteps": 5000, "sample": "1001:5000:50",
      "friction": 0.01, "random_mag": 0.04, "random_seed": 1, "disp_prefix": "disp",
-     "calculator": ..., "output": "mattersim_results.json"}
+     "calculator": ..., "output": "ase_results.json"}
 The sampled, displaced structures are written as {disp_prefix}{NN}.extxyz (extended xyz)
 and the trajectory (every interval steps) as md_traj.extxyz.
 
 job.json (mode "bec"): Born effective charges (and the dielectric tensor when the model provides it).
     {"mode": "bec", "files": ["primitive.extxyz"], "input_format": "extxyz",
      "calculator": {"name": "sevennet-polar", "kwargs": {"model": ".../SevenNet-PS-M.pth"}},
-     "output": "mattersim_results.json"}
+     "output": "ase_results.json"}
 The result has "born_effective_charges" (nat x 3 x 3, e; the calculator's convention, rows as VASP
 BORN EFFECTIVE CHARGES) and "dielectric_tensor" (3 x 3, or null).
 
 job.json (mode "elastic"): clamped-ion elastic constants and strain-force coupling of a cell,
 for the anphon QHA structural optimization (STRAIN_IFC_DIR files elastic_constants.in and strain_force.in).
     {"mode": "elastic", "files": ["primitive.extxyz"], "input_format": "extxyz",
-     "delta": 0.01, "strain_force_delta": 0.005, "calculator": ..., "output": "mattersim_results.json"}
+     "delta": 0.01, "strain_force_delta": 0.005, "calculator": ..., "output": "ase_results.json"}
 The cell is deformed as h' = (1 + u) h with the fractional coordinates fixed; U(u) is the energy.
     V C_{ij}   = d^2 U / du_i du_j       (i, j over xx, xy, xz, yx, yy, yz, zx, zy, zz; 81 values, Ry)
     V C_{ijk}  = d^3 U / du_i du_j du_k  (729 values, Ry)
@@ -392,7 +392,7 @@ def run(job: dict) -> dict:
         structures.append(_atoms_to_dict(atoms, filename))
         # keep a human-readable copy (energy, forces, stress only: calculators such as SevenNet-Polar leave
         # per-atom 3x3 tensors in the results, which the extxyz writer cannot store)
-        _write_extxyz_copy(f"{os.path.splitext(filename)[0]}.mattersim.extxyz", atoms)
+        _write_extxyz_copy(f"{os.path.splitext(filename)[0]}.calc.extxyz", atoms)
         forces = atoms.get_forces()
         print(f"{filename}: E = {atoms.get_potential_energy():.6f} eV, "
               f"|F|max = {abs(forces).max():.4e} eV/A, "
@@ -412,7 +412,7 @@ def main():
     with open(sys.argv[1]) as f:
         job = json.load(f)
     result = run(job)
-    with open(job.get("output", "mattersim_results.json"), "w") as f:
+    with open(job.get("output", "ase_results.json"), "w") as f:
         json.dump(result, f)
     print("JOB DONE.", flush=True)
 

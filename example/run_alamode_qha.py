@@ -5,7 +5,7 @@ QHA-based structural optimization (thermal expansion of wurtzite ZnO).
       ->  harmonic IFCs of the 4x4x2 supercell                                  (FC2XML)
       ->  anharmonic IFCs of the 3x3x2 supercell: MD at 500 K + random 0.04 A, LASSO CV, optimize   (FCSXML)
       ->  harmonic IFCs of the 4x4x2 supercell under 6 strains (xx, yy, zz: 0.005; yz, zx, xy: 0.0025)
-      ->  clamped-ion elastic constants (SOEC, TOEC) and strain-force coupling (mattersim_elastic)
+      ->  clamped-ion elastic constants (SOEC, TOEC) and strain-force coupling (elastic_ase)
       ->  anphon QHA + RELAX_STR = 2 for QHA_SCHEME 0 (full), 1 (ZSISA), 2 (v-ZSISA)  ->  thermal strain figure
 
 usage:
@@ -29,7 +29,7 @@ from ase.build import bulk
 
 from run_alamode_phonons import (NodeBank, wait, run_cached, read_structure, find_primitive, idealize_structure,
                                  make_supercell_structure, submit_alm, submit_displace, submit_forces, submit_anphon,
-                                 submit_mattersim, HERE, ALAMODE_TEST, BOHR)
+                                 submit_ase, HERE, ALAMODE_TEST, BOHR)
 from aiida.engine import calcfunction
 from aiida.orm import load_code, Str, Dict, Float, Int, List, Bool
 from aiida.plugins import DataFactory
@@ -207,7 +207,7 @@ def main():
         unit = unit0
     else:
         relax = run_cached(bank, f"relax_{args.relax}",
-                           lambda: submit_mattersim("mattersim_relax", code_mattersim, unit0, calculator, opt_serial,
+                           lambda: submit_ase("relax_ase", code_mattersim, unit0, calculator, opt_serial,
                                                     cwd=Str(dirs["relax"]), hydrostatic_strain=Bool(args.relax == "volume")))
         unit = relax.outputs.structure
         r = relax.outputs.results
@@ -253,7 +253,7 @@ def main():
     _, opt_ha = harmonic_ifcs("harm_small", unit, args.supercell_anharm, dirs["anharmonic"], Str(f"{name}_k{ka}_harmonic"))
 
     md = run_cached(bank, "md",
-                    lambda: submit_mattersim("mattersim_md", code_mattersim, supercell_a, calculator, opt_calc, cwd=cwd_md,
+                    lambda: submit_ase("md_ase", code_mattersim, supercell_a, calculator, opt_calc, cwd=cwd_md,
                                              temperature=Float(args.md_temperature), timestep=Float(args.md_timestep),
                                              nsteps=Int(args.md_steps), sample=Str(args.md_sample),
                                              random_mag=Float(args.random_mag), random_seed=Int(args.random_seed)))
@@ -296,7 +296,7 @@ def main():
 
     # --- 4. elastic constants and strain-force coupling of the primitive cell
     elastic = run_cached(bank, "elastic",
-                         lambda: submit_mattersim("mattersim_elastic", code_mattersim, prim, calculator, opt_serial,
+                         lambda: submit_ase("elastic_ase", code_mattersim, prim, calculator, opt_serial,
                                                   cwd=Str(dirs["elastic"]), delta=Float(args.elastic_delta),
                                                   strain_force_delta=Float(args.strain)))
     C = np.array(elastic.outputs.results["soec_GPa"])
