@@ -1,6 +1,6 @@
 {
     "name": "aiida-alamode",
-    "version": "0.10.1",
+    "version": "1.0.0",
     "entry_points": {
         "aiida.workflows": [
             "alamode.force_simulator_lammps = aiida_alamode.workflows.alldisp_lammps_workchain: ForcesLammpsWorkChain",
