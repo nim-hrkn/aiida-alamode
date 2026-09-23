@@ -44,8 +44,9 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 5. **aiida-core ≥ 2.3 の withmpi**：既定値が無いので base CalcJob で False を設定済み。
 6. **SCPH の発散**：TMAX が低い（400 K）と 75 K の構造ループが 1000 回回っても収束しない。最低温度で "negative frequency is detected" が続くと anphon が `std::length_error` で落ちる → TMIN を上げる、ADD_HESS_DIAG。
 7. **リモート計算機（core.ssh_async）**：sshd の MaxStartups → `ControlMaster auto`；日本語ロケール → `SetEnv LC_ALL=C`；一時停止は `verdi process play`。
-8. **GPU**：`--gpu`（`#SBATCH --gres=gpu:1`）。1 秒未満のジョブは GPU の方が遅い。MD は 4〜5 倍速い。
-9. **SevenNet-Polar の元素**：PS 系は Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr、PM 系は Li, O, P, Zr。Zn、Si、Te は不可。ASR の残差が大きい（> 0.5 e）なら分布外。
+8. **slurm の InvalidAccount**：23.11 の accounting_storage/none の不具合。ジョブは動くがバックフィルだけで 30 秒に 1 本。直し方は docs/slurm_invalidaccount.md。
+9. **GPU**：`--gpu`（`#SBATCH --gres=gpu:1`）。1 秒未満のジョブは GPU の方が遅い。MD は 4〜5 倍速い。
+10. **SevenNet-Polar の元素**：PS 系は Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr、PM 系は Li, O, P, Zr。Zn、Si、Te は不可。ASR の残差が大きい（> 0.5 e）なら分布外。
 
 ## 失敗の診かた
 

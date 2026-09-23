@@ -86,7 +86,7 @@ python run_alamode_phonons.py --preset Si --computer gpu-node-async --gpu --njob
 |---|---|---|
 | アップロードが 5 回失敗して一時停止（`whoami` exit 255） | core.ssh_async が同時に多数の ssh 接続を開き、sshd の `MaxStartups`（既定 10）で切られる | `ControlMaster auto` で接続を多重化、`--safe-interval 2 --max-io-allowed 4`。停止したものは `verdi process play <pk>` |
 | 再試行で `Failed to create directory ... lost+found` | GPU ノードのロケールが日本語だと `mkdir` が「ファイルが存在します」と返し、AiiDA は英語の "File exists" しか既存扱いしない | `SetEnv LC_ALL=C`（sshd は既定で `LC_*` を受け付ける） |
-| ジョブが `InvalidAccount` で数分待つ | slurm の会計設定の癖。害はない | 待つ |
+| ジョブが `InvalidAccount` で数分待つ | slurm 23.11 の accounting_storage/none と未初期化 errno の不具合。バックフィルだけが 30 秒に 1 本起動する | [slurm_invalidaccount.md](slurm_invalidaccount.md)（slurmdbd を立てる、1 行パッチ、bf_interval の短縮） |
 | daemon 再起動後に "Transport task upload was cancelled" | 再起動時に転送タスクが切られた | 自動で再開される。`verdi process play` でも可 |
 | 1 秒未満のジョブが GPU で遅い | CUDA の起動に 0.5 秒 | 小さな調和計算はホストの CPU、MD と大きな supercell は GPU |
 | anphon が `std::length_error` で落ちる | SCPH が最低温度で発散（"negative frequency is detected" が続く） | ビルドの問題ではない。TMIN を上げる、ADD_HESS_DIAG や MIXBETA_COORD で安定化 |
