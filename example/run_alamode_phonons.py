@@ -520,7 +520,8 @@ def parse_args():
                         help="ASE calculator name (aiida_alamode.mattersim_runner.CALCULATORS: mattersim, mace, chgnet, sevennet, orb, emt, ...)")
     parser.add_argument("--calculator-kwargs", default="{}", help='JSON kwargs of the calculator, e.g. \'{"model": "medium"}\'')
     parser.add_argument("--calc-label", help="legend label of the calculator")
-    parser.add_argument("--computer", default="mygarden5")
+    parser.add_argument("--computer", default=os.environ.get("AIIDA_ALAMODE_COMPUTER", "localhost"),
+                        help="AiiDA computer label of the codes alm@..., anphon@..., ... (env AIIDA_ALAMODE_COMPUTER)")
     parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4, help="cores of the MatterSim jobs")
     parser.add_argument("--njobs", type=int, default=1, help="number of slurm jobs for the displaced structures")

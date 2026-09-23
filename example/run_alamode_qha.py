@@ -144,7 +144,8 @@ def parse_args():
     parser.add_argument("--qmesh", type=int, default=8)
     parser.add_argument("--schemes", type=int, nargs="+", default=[0, 1, 2], help="QHA_SCHEME values (0 full, 1 ZSISA, 2 v-ZSISA)")
     parser.add_argument("--no-ref", action="store_true")
-    parser.add_argument("--computer", default="mygarden5")
+    parser.add_argument("--computer", default=os.environ.get("AIIDA_ALAMODE_COMPUTER", "localhost"),
+                        help="AiiDA computer label of the codes alm@..., anphon@..., ... (env AIIDA_ALAMODE_COMPUTER)")
     parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4)
     parser.add_argument("--njobs", type=int, default=2)
