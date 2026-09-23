@@ -58,9 +58,12 @@ job.json (mode "bec"): Born effective charges (and the dielectric tensor when th
      "calculator": {"name": "sevennet-polar", "kwargs": {"model": ".../SevenNet-PS-M.pth"}},
      "output": "ase_results.json"}
 The result has "born_effective_charges" (nat x 3 x 3, e; the calculator's convention, rows as VASP
-BORN EFFECTIVE CHARGES) and "dielectric_tensor" (3 x 3, or null).  When the calculator does not give the
-dielectric tensor, "dielectric_model": {"name": "anisonet", "kwargs": {...}} predicts the high-frequency
-(electronic) dielectric tensor eps_inf with a separate model (DIELECTRIC_MODELS).
+BORN EFFECTIVE CHARGES) and "dielectric_tensor" (3 x 3, or null if the calculator has none).
+
+job.json (mode "dielectric"): the high-frequency (electronic) dielectric tensor eps_inf of the cell,
+    {"mode": "dielectric", "files": ["cell.extxyz"], "input_format": "extxyz",
+     "dielectric_model": {"name": "anisonet", "kwargs": {...}}, "output": "ase_results.json"}
+with a model of DIELECTRIC_MODELS, or without "dielectric_model" from a calculator that returns it.
 
 job.json (mode "elastic"): clamped-ion elastic constants and strain-force coupling of a cell,
 for the anphon QHA structural optimization (STRAIN_IFC_DIR files elastic_constants.in and strain_force.in).
@@ -375,6 +378,22 @@ def predict_dielectric(atoms, spec: dict):
     return np.asarray(eps, dtype=float).reshape(3, 3)
 
 
+def _dielectric(atoms, job: dict) -> dict:
+    """eps_inf of the cell: with job["dielectric_model"] (DIELECTRIC_MODELS) if given, else from the calculator."""
+    if job.get("dielectric_model"):
+        eps = predict_dielectric(atoms, job["dielectric_model"]); source = job["dielectric_model"]["name"]
+    else:
+        atoms.calc.calculate(atoms, properties=["dielectric_tensor"])
+        eps = atoms.calc.results.get("dielectric_tensor")
+        if eps is None:
+            raise ValueError(f"the calculator {type(atoms.calc).__name__} does not provide dielectric_tensor; give dielectric_model.")
+        source = "calculator"
+    eps = np.asarray(eps, dtype=float).reshape(3, 3)
+    print("dielectric tensor (%s):" % source, np.round(eps, 3).tolist(), flush=True)
+    return {"symbols": atoms.get_chemical_symbols(), "cell": atoms.cell.array.tolist(),
+            "dielectric_tensor": eps.tolist(), "dielectric_source": source}
+
+
 def _bec(atoms, job: dict = None) -> dict:
     """Born effective charges of every atom (and the dielectric tensor if the calculator gives one)."""
     calc = atoms.calc
@@ -385,10 +404,6 @@ def _bec(atoms, job: dict = None) -> dict:
     bec = np.asarray(results["born_effective_charges"], dtype=float).reshape(len(atoms), 3, 3)
     eps = results.get("dielectric_tensor")
     source = "calculator" if eps is not None else None
-    if eps is None and job and job.get("dielectric_model"):
-        eps = predict_dielectric(atoms, job["dielectric_model"])
-        source = job["dielectric_model"]["name"]
-        print("dielectric tensor (%s):" % source, np.round(eps, 3).tolist(), flush=True)
     out = {"symbols": atoms.get_chemical_symbols(), "positions": atoms.get_positions().tolist(),
            "cell": atoms.cell.array.tolist(), "born_effective_charges": bec.tolist(),
            "dielectric_tensor": np.asarray(eps, dtype=float).reshape(3, 3).tolist() if eps is not None else None,
@@ -409,7 +424,10 @@ def run(job: dict) -> dict:
     mode = job.get("mode", "forces")
 
     t0 = time.time()
-    calc, spec = make_calculator(job)
+    if mode == "dielectric" and job.get("dielectric_model") and not job.get("calculator"):
+        calc, spec = None, {"name": None}   # only the dielectric model is needed
+    else:
+        calc, spec = make_calculator(job)
     t_load = time.time() - t0
     print(f"calculator: {spec}", flush=True)
 
@@ -420,6 +438,13 @@ def run(job: dict) -> dict:
         md.update({"mode": mode, "calculator": spec, "num_threads": nthreads,
                    "time_model_load": t_load, "time_total": time.time() - t0, "structures": []})
         return md
+    if mode == "dielectric":
+        atoms = ase.io.read(job["files"][0], format=input_format)
+        atoms.calc = calc
+        result = _dielectric(atoms, job)
+        result.update({"mode": mode, "calculator": spec, "num_threads": nthreads,
+                       "time_model_load": t_load, "time_total": time.time() - t0, "structures": []})
+        return result
     if mode == "bec":
         atoms = ase.io.read(job["files"][0], format=input_format)
         atoms.calc = calc

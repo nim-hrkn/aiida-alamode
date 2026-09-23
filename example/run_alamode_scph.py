@@ -29,9 +29,9 @@ from ase import Atoms
 from run_alamode_phonons import (NodeBank, wait, run_cached, read_structure, find_primitive, idealize_structure,
                                  make_supercell_structure, submit_alm, submit_displace, submit_forces, submit_anphon,
                                  submit_ase, HERE, ALAMODE_TEST, BOHR)
-from aiida.engine import calcfunction
+from aiida.engine import calcfunction, submit
 from aiida.orm import load_code, Str, Dict, Float, Int, List, Bool
-from aiida.plugins import DataFactory
+from aiida.plugins import DataFactory, WorkflowFactory
 from aiida_alamode.io.alm_input import AlmPrefixMaker
 
 StructureData = DataFactory('core.structure')
@@ -289,17 +289,20 @@ def main():
     if args.borninfo:
         borninfo = run_cached(bank, "borninfo", lambda: SinglefileData(os.path.abspath(args.borninfo)))
     elif args.borninfo_calculator:
+        # Z* (alamode.bec_ase) and eps_inf (alamode.epsinf_ase with a dielectric model, or a given value)
+        # of the primitive cell -> BORNINFO (BornInfoWorkChain); same atom order as the anphon &position
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
-        extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
+        inputs = dict(structure=prim, bec=dict(code=code_ase, calculator=bec_calculator, cwd=Str(dirs["scph"]), options=Dict(opt_serial)))
         if args.dielectric_model:
-            extra["dielectric_model"] = Dict({"name": args.dielectric_model})
-        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_ase, prim, bec_calculator, opt_serial,
-                                                              cwd=Str(dirs["scph"]), **extra))
+            inputs["epsinf"] = dict(code=code_ase, dielectric_model=Dict({"name": args.dielectric_model}), cwd=Str(dirs["scph"]),
+                                    options=Dict(opt_serial))
+        if args.dielectric:
+            inputs["dielectric"] = List(args.dielectric)
+        bec = run_cached(bank, "borninfo_wc", lambda: submit(WorkflowFactory("alamode.borninfo"), **inputs))
         r = bec.outputs.results
         print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})
-        if "borninfo" not in bec.outputs:
-            raise SystemExit("no dielectric tensor: give --dielectric")
+        print(f"dielectric tensor ({r['epsilon_inf_source']}):", np.round(r["epsilon_inf"], 3).tolist())
         borninfo = bec.outputs.borninfo
 
     # --- SCPH with structural relaxation (tutorial 7.4)

@@ -48,11 +48,7 @@ python run_alamode_qha.py                            # ZnO: strained IFCs, elast
 
 ### Born effective charges with SevenNet-Polar (v0.10)
 
-`alamode.bec_ase` (`AseBornChargesCalculation`; a VASP counterpart would read OUTCAR into the same `borninfo` output) computes the Born effective charges of the primitive
-cell with a calculator that provides them (`{"name": "sevennet-polar"}`, checkpoints from
-zenodo 10.5281/zenodo.21322761) and writes the BORNINFO file for anphon; the dielectric tensor comes from
-the calculator, from a separate model (`dielectric_model` = `{"name": "anisonet"}`, the electronic dielectric tensor
-from AnisoNet, github.com/virtualatoms/AnisoNet) or from the `dielectric` input.  `run_alamode_phonons.py --borninfo-calculator sevennet-polar
+Z* and eps_inf are separate jobs: `alamode.bec_ase` (`AseBornChargesCalculation`, SevenNet-Polar checkpoints from zenodo 10.5281/zenodo.21322761) and `alamode.epsinf_ase` (`AseDielectricTensorCalculation`, the electronic dielectric tensor from AnisoNet, github.com/virtualatoms/AnisoNet).  `alamode.borninfo` (`BornInfoWorkChain`) runs both (or takes a given `dielectric`) and writes the BORNINFO file for anphon; the engines are chosen by `bec_plugin` / `epsinf_plugin` (a VASP job giving both would skip the eps_inf job).  `run_alamode_phonons.py --borninfo-calculator sevennet-polar
 --dielectric 6.7 --nonanalytic 0 3` uses it (cubic BaTiO3; ZrO2, BaZrO3 and the full BaHfO3 chain `example/run_BaHfO3_example.sh` in the docs).  See `docs/born_effective_charges.md`.
 
 Running the MatterSim / SevenNet jobs on a remote GPU node through `core.ssh_async` + slurm (setup, ALAMODE build with conda + MKL, pitfalls, CPU vs GPU timings): `docs/remote_gpu_computer.md`.  A Claude Code skill summarizing the plugin, the drivers and the pitfalls is in `.claude/skills/aiida-alamode/SKILL.md`.

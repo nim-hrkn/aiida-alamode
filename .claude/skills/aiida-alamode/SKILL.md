@@ -23,7 +23,8 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 | alamode.displace_pf | displace.py -pf | structure_org, pattern, mag, norder → displaced_structures(TrajectoryData) |
 | alamode.forces（ForcesWorkChain、forces_plugin で CalcJob を選ぶ） | 力 + DFSET | code, structures, structure_org, calculator, njobs, subtract_offset → arrays, dfset(List) |
 | alamode.forces_ase / relax_ase / md_ase / elastic_ase | 力の予測（`calculations/force_calcjob.py`、基底 ForceCalculatorBaseCalculation；ASE エンジンは `engine_base.py` の AseRunnerBaseCalculation、runner `alamode-ase-runner`。DFT 用は同じ基底の下に足す） |
-| alamode.bec_ase | 誘電特性の予測（`calculations/dielectric_calcjob.py`、基底 DielectricCalculatorBaseCalculation；SevenNet-Polar、将来は VASP/QE） | structure(s), calculator Dict → arrays / structure / displaced_structures / strain_ifc_folder / borninfo |
+| alamode.bec_ase / epsinf_ase | 誘電特性の予測（`calculations/dielectric_calcjob.py`：Z* は BornChargesBaseCalculation、ε∞ は DielectricTensorBaseCalculation の下；SevenNet-Polar、AnisoNet、将来は VASP/QE） |
+| alamode.borninfo（BornInfoWorkChain） | Z* のジョブ + ε∞ のジョブ（または `dielectric` の値）→ calcfunction make_borninfo → `borninfo`。名前空間 `bec` / `epsinf` と `bec_plugin` / `epsinf_plugin` でエンジンを選ぶ | structure(s), calculator Dict → arrays / structure / displaced_structures / strain_ifc_folder / borninfo |
 | alamode.anphon | anphon | structure(prim), fcsxml, mode(phonons/RTA/SCPH/QHA…), param, borninfo, fc2xml, extra_files → phband_file, phdos_file, kl_file, output_folder, results(timing) |
 | alamode.analyze_phonons | analyze_phonons | file_result, calc(tau/cumulative/kappa_boundary), param → *_file |
 
@@ -38,7 +39,7 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 
 1. **supercell の像**：`make_diagonal_supercell` を使う（ASE の make_supercell だと translation 1 が基本胞の位置とずれ、NONANALYTIC=3 が壊れる）。
 2. **緩和後のノイズ**：alm が「自由な IFC 0 個」→ `--idealize`（spglib で対称化して入力の座標系に戻す）。
-3. **BORNINFO の順序**：&position（構造の原子順）であって KD の順ではない。`bec_ase` と anphon に同じ StructureData を渡す。ε∞ は SevenNet-Polar からは出ない。`dielectric_model` = anisonet（電子誘電率を予測、~/models/anisonet/anisonet-stock.ckpt）か `dielectric` 入力で与える。
+3. **BORNINFO の順序**：&position（構造の原子順）であって KD の順ではない。BornInfoWorkChain と anphon に同じ StructureData を渡す。ε∞ は SevenNet-Polar からは出ない。`dielectric_model` = anisonet（電子誘電率を予測、~/models/anisonet/anisonet-stock.ckpt）か `dielectric` 入力で与える。
 4. **anphon は NAT を受け付けない**（atoms_to_alm_in で alm モードだけに書く）。ひずんだ格子の IFC は `subtract_offset` が必須。
 5. **aiida-core ≥ 2.3 の withmpi**：既定値が無いので base CalcJob で False を設定済み。
 6. **SCPH の発散**：TMAX が低い（400 K）と 75 K の構造ループが 1000 回回っても収束しない。最低温度で "negative frequency is detected" が続くと anphon が `std::length_error` で落ちる → TMIN を上げる、ADD_HESS_DIAG。

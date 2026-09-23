@@ -14,7 +14,8 @@
             "alamode.img.thermo_calculator = aiida_alamode.workflows.img_phononcalculation_workchain: ThermoImgPhononCalculatorWorkChain",
             "alamode.make_best_supercell = aiida_alamode.workflows.make_best_supercell_workchain: BestSupercellWorkChain",
             "alamode.check_convergence_freeenergy = aiida_alamode.workflows.check_convergence_freeenergy_workchain: checkConvergenceFreeenergyWorkchain",
-            "alamode.forces = aiida_alamode.workflows.forces_workchain: ForcesWorkChain"
+            "alamode.forces = aiida_alamode.workflows.forces_workchain: ForcesWorkChain",
+            "alamode.borninfo = aiida_alamode.workflows.borninfo_workchain: BornInfoWorkChain"
         ],
         "aiida.calculations": [
             "alamode.alm_suggest   = aiida_alamode.calculations.alm_calcjob: AlmSuggestCalculation",
@@ -30,7 +31,8 @@
             "alamode.relax_ase = aiida_alamode.calculations.force_calcjob: AseRelaxCalculation",
             "alamode.md_ase = aiida_alamode.calculations.force_calcjob: AseMdCalculation",
             "alamode.elastic_ase = aiida_alamode.calculations.force_calcjob: AseElasticCalculation",
-            "alamode.bec_ase = aiida_alamode.calculations.dielectric_calcjob: AseBornChargesCalculation"
+            "alamode.bec_ase = aiida_alamode.calculations.dielectric_calcjob: AseBornChargesCalculation",
+            "alamode.epsinf_ase = aiida_alamode.calculations.dielectric_calcjob: AseDielectricTensorCalculation"
         ],
         "aiida.parsers": [
             "alamode.alm   = aiida_alamode.calculations.alm_calcjob: AlmParser",
@@ -43,7 +45,8 @@
             "alamode.relax_ase = aiida_alamode.calculations.force_calcjob: AseRelaxParser",
             "alamode.md_ase = aiida_alamode.calculations.force_calcjob: AseMdParser",
             "alamode.elastic_ase = aiida_alamode.calculations.force_calcjob: AseElasticParser",
-            "alamode.bec_ase = aiida_alamode.calculations.dielectric_calcjob: AseBornChargesParser"
+            "alamode.bec_ase = aiida_alamode.calculations.dielectric_calcjob: AseBornChargesParser",
+            "alamode.epsinf_ase = aiida_alamode.calculations.dielectric_calcjob: AseDielectricTensorParser"
         ],
         "console_scripts": [
             "alamode-ase-runner = aiida_alamode.ase_runner:main"

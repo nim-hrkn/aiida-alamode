@@ -41,16 +41,28 @@ PbTe のような Te を含む系は扱えない。
 - パッケージに推論 API は無いので、`notebooks/predict.ipynb` と同じ構成（E3nnModel、layers 2、mul 48、lmax 3、cutoff 5 Å）でモデルを組み、
   lightning の checkpoint の state_dict を読む。`aiida_alamode.ase_runner.DIELECTRIC_MODELS["anisonet"]` がそれ。
 
+## CalcJob と WorkChain の構成
+
+Z* と ε∞ は別の予測なので別の CalcJob にし、`BornInfoWorkChain` で束ねる。エンジンの組み合わせ
+（SevenNet-Polar + AnisoNet、将来の VASP + AnisoNet、VASP だけ、など）は entry point と入力の名前空間で選ぶ。
+
+| entry point | クラス（`calculations/dielectric_calcjob.py`） | 入力 | 出力 |
+|---|---|---|---|
+| `alamode.bec_ase` | `AseBornChargesCalculation`（基底 `BornChargesBaseCalculation`） | `structure`、`calculator`（sevennet-polar）、`enforce_asr` | `born_effective_charges`（ArrayData `bec`、`bec_raw`）、calculator が返せば `dielectric_tensor` |
+| `alamode.epsinf_ase` | `AseDielectricTensorCalculation`（基底 `DielectricTensorBaseCalculation`） | `structure`、`dielectric_model`（anisonet）または ε∞ を返す `calculator` | `dielectric_tensor`（ArrayData `epsilon_inf`） |
+| `alamode.borninfo` | `BornInfoWorkChain`（`workflows/borninfo_workchain.py`） | `structure`、`bec_plugin`、名前空間 `bec`（code、calculator、options…）、`epsinf_plugin`、名前空間 `epsinf`（code、dielectric_model、options…）、または `dielectric`（1、3、9 成分） | `born_effective_charges`、`dielectric_tensor`、`borninfo`（SinglefileData）、`results` |
+
+WorkChain の流れ: Z* のジョブ → （Z* のジョブが ε∞ も返せばそれを使う／`dielectric` が与えられていればそれ／
+それ以外は ε∞ のジョブ）→ calcfunction `make_borninfo` が BORNINFO を書く（Z* の行は `structure` の原子順）。
+VASP なら `VaspBornChargesCalculation`（LEPSILON で Z* と ε∞ の両方）を `bec_plugin` にすれば ε∞ のジョブは自動で省かれる。
+
 ## CalcJob `alamode.bec_ase`（`AseBornChargesCalculation`）
 
 実装は `calculations/dielectric_calcjob.py`。力の予測（`force_calcjob.py`、`ForceCalculatorBaseCalculation`）とは別の種類の予測なので、基底は `DielectricCalculatorBaseCalculation` に分けてある（`structure`、`dielectric`、`enforce_asr` の入力と `born_effective_charges`、`borninfo` の出力はここで定義）。VASP（LEPSILON）や QE（ph.x）で Z* と ε∞ を出す CalcJob はこの基底の下に作れば anphon 側は変更なしで使える。ASE 側のエンジン共通部分は `engine_base.py` の `AseRunnerBaseCalculation`。
 
-- 入力: `structure`（基本胞。anphon の &position と同じ原子順）、`calculator`（例 `{"name": "sevennet-polar"}`）、
-  `dielectric_model`（ε∞ を別のモデルで予測する。`{"name": "anisonet"}`）、`dielectric`（手で与える 3×3、対角 3 成分、または等方 1 成分）。
-  優先順位は calculator 自身の ε∞ → `dielectric_model` → `dielectric`、`enforce_asr`（既定 True、
+- 入力: `structure`（基本胞。anphon の &position と同じ原子順）、`calculator`（例 `{"name": "sevennet-polar"}`）、`enforce_asr`、`enforce_asr`（既定 True、
   Σ_i Z*_i = 0 になるよう平均を引く）。
-- 出力: `results`（Z* の対角、ASR の残差、ε∞ の出所）、`born_effective_charges`（ArrayData: `bec`、`bec_raw`、`dielectric`）、
-  `borninfo`（ε∞ が分かるときだけ。anphon の `borninfo` 入力にそのまま渡せる SinglefileData）。
+- 出力: `results`（Z* の対角、ASR の残差）、`born_effective_charges`（ArrayData: `bec`、`bec_raw`）。BORNINFO は WorkChain が作る。
 - 実体は runner の `bec` モード（`alamode-ase-runner job.json`）で、ASE calculator の
   `results["born_effective_charges"]`（nat×3×3）を読む。
 
@@ -64,7 +76,7 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
 `--dielectric 6.7` の代わりに `--dielectric-model anisonet` とすれば ε∞ も予測になり、文献値は不要になる。
 
 `--borninfo` でファイルを渡す代わりに `--borninfo-calculator` を指定すると、緩和後の基本胞に対して
-`alamode.bec_ase` が走り、その BORNINFO が anphon に渡る。`--dielectric` の値は文献値を与える
+`BornInfoWorkChain`（`alamode.bec_ase` + `alamode.epsinf_ase` または `--dielectric` の値）が走り、その BORNINFO が anphon に渡る。`--dielectric` の値は文献値を与える
 （立方 BaTiO₃ の ε∞ = 6.7 は Zhong, King-Smith, Vanderbilt, PRL 72, 3618 (1994) の LDA 値）。
 
 ## 注意

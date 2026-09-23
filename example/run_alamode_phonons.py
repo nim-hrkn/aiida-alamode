@@ -652,19 +652,20 @@ def main():
     if args.borninfo:
         borninfo = run_cached(bank, "borninfo", lambda: SinglefileData(os.path.abspath(args.borninfo)))
     elif args.borninfo_calculator:
-        # Born effective charges of the primitive cell (same atom order as the anphon &position) -> BORNINFO
+        # Z* (alamode.bec_ase) and eps_inf (alamode.epsinf_ase with a dielectric model, or a given value)
+        # of the primitive cell -> BORNINFO (BornInfoWorkChain); same atom order as the anphon &position
         bec_calculator = run_cached(bank, "bec_calculator",
                                     lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
-        extra = {"dielectric": List(args.dielectric)} if args.dielectric else {}
+        inputs = dict(structure=prim, bec=dict(code=code_ase, calculator=bec_calculator, cwd=Str(dirs["phonons"]), options=Dict(opt_serial)))
         if args.dielectric_model:
-            extra["dielectric_model"] = Dict({"name": args.dielectric_model})
-        bec = run_cached(bank, "bec", lambda: submit_ase("bec_ase", code_ase, prim, bec_calculator, opt_serial,
-                                                              cwd=Str(dirs["phonons"]), **extra))
+            inputs["epsinf"] = dict(code=code_ase, dielectric_model=Dict({"name": args.dielectric_model}), cwd=Str(dirs["phonons"]),
+                                    options=Dict(opt_serial))
+        if args.dielectric:
+            inputs["dielectric"] = List(args.dielectric)
+        bec = run_cached(bank, "borninfo_wc", lambda: submit(WorkflowFactory("alamode.borninfo"), **inputs))
         r = bec.outputs.results
         print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})
-        print(f"dielectric tensor ({r['dielectric_source']}):", np.round(r["dielectric_tensor"], 3).tolist() if r["dielectric_tensor"] else None)
-        if "borninfo" not in bec.outputs:
-            raise SystemExit("no dielectric tensor: give --dielectric")
+        print(f"dielectric tensor ({r['epsilon_inf_source']}):", np.round(r["epsilon_inf"], 3).tolist())
         borninfo = bec.outputs.borninfo
     targets = [("ms", prim, alm_opt.outputs.input_ANPHON, dirs["phonons"])]
     if args.ref_xml:
