@@ -75,6 +75,14 @@ ALAMODE の tutorial の物質を、DFT の代わりに MatterSim（または他
   4. **ひずんだ格子の IFC**。平衡でない格子では無変位構造にも力が残るため、それを差し引く offset（`subtract_offset`）が必要。
      落とすと fitting error が 96 % になる。
 
+## Born 有効電荷と ε∞ の検証軸
+
+PbTe、BaTiO₃、BaZrO₃、BaHfO₃、ZrO₂ の LO-TO 補正には Z* と ε∞ が要る。力場（MatterSim など）はどちらも出せないので、
+Z* は SevenNet-Polar（Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr の系）、ε∞ は AnisoNet で予測し、`BornInfoWorkChain` で
+BORNINFO にする。検証は「文献の DFT 値との一致」（Z* は BaTiO₃ で Ba 2.72 / Ti 7.72 / O −2.15, −6.14、ε∞ は
+BaZrO₃ 4.93、MgO 3.13）と「NA3 で Γ 点の LO が上がり TO は動かないこと」で行う。詳細と表は
+[born_effective_charges.md](born_effective_charges.md)。PbTe は Te が未学習のため tutorial の DFT の BORNINFO を使う。
+
 ## まとめ
 
 | 物質 | 調和近似で安定か | 検証している物理 | 力場に効く量 |

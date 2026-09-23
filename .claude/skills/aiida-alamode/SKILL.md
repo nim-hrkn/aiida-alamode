@@ -48,6 +48,16 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 9. **GPU**：`--gpu`（`#SBATCH --gres=gpu:1`）。1 秒未満のジョブは GPU の方が遅い。MD は 4〜5 倍速い。
 10. **SevenNet-Polar の元素**：PS 系は Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr、PM 系は Li, O, P, Zr。Zn、Si、Te は不可。ASR の残差が大きい（> 0.5 e）なら分布外。
 
+## Z* と ε∞（結果の目安、docs/born_effective_charges.md）
+
+- Z*（SevenNet-Polar PS-M）：BaTiO₃ Ba 2.72 / Ti 7.72 / O −2.15, −6.14（DFT 2.75 / 7.16 / −2.11, −5.69）、BaZrO₃ 2.72 / 5.68 / −1.98, −4.44、
+  BaHfO₃ 2.74 / 5.42 / −1.99, −4.19、単斜 ZrO₂ Zr 5.0〜5.5 / O −2.5〜−2.8。ASR 残差 > 0.5 e は分布外（ルチル・アナターゼ TiO₂）。
+- ε∞（AnisoNet、電子誘電率、num_neighbors = 34.956847 に固定）：Si 13.1、MgO 3.13、BaHfO₃ 4.69、BaZrO₃ 4.93、BaTiO₃ 6.3、SrTiO₃ 6.55、
+  ZrO₂ 5.2〜5.8、ルチル TiO₂ 7.7 / 9.3。文献の 1〜2 割以内。`example/test_epsinf.py --computer <label>` で再検証。
+- NA3 で Γ 点の最高 LO が 4〜6 THz 上がり、TO とソフトモードは動かなければ BORNINFO は正しく入っている。
+- AnisoNet の落とし穴：predict notebook の書き方だと num_neighbors がバッチ依存で値が変わる。runner の固定値を使う。
+  mygarden 系の壊れた GPU では `device: auto` が CUDA を選んで失敗するため runner は初期化失敗時に CPU に落ちる。
+
 ## 失敗の診かた
 
 `verdi process report <pk>`（例外と exit code）、`verdi calcjob outputcat <pk>`（標準出力）、`verdi node attributes <pk>` の `remote_workdir`。
