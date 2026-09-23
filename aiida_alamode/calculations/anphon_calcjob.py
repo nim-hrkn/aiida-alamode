@@ -24,6 +24,7 @@ from aiida.common.exceptions import InputValidationError
 
 from ..io.alm_input import make_alm_in, atoms_to_alm_in, make_alm_kpoint
 from ..io.aiida_support import folder_prepare_object, save_output_folder_files
+from ..io.misc import parse_job_times
 from ..common.base import AlamodeBaseCalculation
 
 
@@ -437,6 +438,13 @@ def _parse_anphon_RTA(handle):
 
 class AnphonParser(Parser):
 
+    def _timing(self, output_folder) -> dict:
+        """start / end time, MPI / OpenMP counts of anphon from its stdout (results['timing'])"""
+        try:
+            return parse_job_times(output_folder.get_object_content(self.node.get_option('output_filename')))
+        except (OSError, KeyError, FileNotFoundError):
+            return {}
+
     def parse(self, **kwargs):
         mode = self.node.inputs.mode.value
         alm_prefix_node = self.node.inputs.prefix
@@ -469,7 +477,8 @@ class AnphonParser(Parser):
                         folderdata.put_object_from_filelike(handle, name)
                     files.append(name)
             self.out('output_folder', folderdata)
-            self.out('results', Dict(dict={"mode": mode, "prefix": alm_prefix_node.value, "files": files}))
+            self.out('results', Dict(dict={"mode": mode, "prefix": alm_prefix_node.value, "files": files,
+                                           "timing": self._timing(output_folder)}))
             return
 
         if mode == "RTA":
@@ -526,6 +535,7 @@ class AnphonParser(Parser):
                     self.out(label.replace("filename", "file"),
                              SinglefileData(handle, filename=filename))
 
+            result["timing"] = self._timing(output_folder)
             self.out('results', Dict(dict=result))
 
         elif mode == "phonons":
@@ -566,4 +576,5 @@ class AnphonParser(Parser):
                                                             cwd, alm_prefix_node)
                     raise self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
 
+            result["timing"] = self._timing(output_folder)
             self.out('results', Dict(dict=result))

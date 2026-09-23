@@ -27,6 +27,7 @@ from ..io.aiida_support import folder_prepare_object, save_output_folder_files
 
 from ..io.alm_input import make_alm_in, atoms_to_alm_in
 from ..io.displacement import lines_to_displacementpattern
+from ..io.misc import parse_job_times
 
 
 StructureData = DataFactory('core.structure')
@@ -473,6 +474,13 @@ class AlmCvCalculation(AlmOptCalculation):
 
 class AlmParser(Parser):
 
+    def _timing(self, output_folder) -> dict:
+        """start / end time of alm from its stdout (results['timing'])"""
+        try:
+            return parse_job_times(output_folder.get_object_content(self.node.get_option('output_filename')))
+        except (OSError, KeyError, FileNotFoundError):
+            return {}
+
     def parse(self, **kwargs):
         mode = self.node.inputs.mode.value
         _cwd = ""
@@ -501,6 +509,7 @@ class AlmParser(Parser):
                 result = _parse_alm_cvscore(output_folder.get_object_content(filename))
             except ValueError:
                 return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
+            result["timing"] = self._timing(output_folder)
             with output_folder.open(filename, "rb") as handle:
                 self.out('cvscore_file', SinglefileData(handle, filename=filename))
             self.out('results', Dict(dict=result))
@@ -523,6 +532,7 @@ class AlmParser(Parser):
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
+            result["timing"] = self._timing(output_folder)
             self.out('results', Dict(dict=result))
 
             # main result = pattern files
@@ -564,6 +574,7 @@ class AlmParser(Parser):
                 return self.exit_codes.ERROR_READING_OUTPUT_FILE
             except ValueError:
                 return self.exit_codes.ERROR_INVALID_OUTPUT
+            result["timing"] = self._timing(output_folder)
             self.out('results', Dict(dict=result))
 
             key = "input_ANPHON"

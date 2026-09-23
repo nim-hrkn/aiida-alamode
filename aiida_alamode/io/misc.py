@@ -33,3 +33,37 @@ class zerofillStr:
             nzero += 1
 
         self._nzerofills = nzero
+
+
+def parse_job_times(text) -> dict:
+    """start / end time and thread counts from the stdout of alm / anphon.
+
+    Args:
+        text (str or list): the output file content (or its lines).
+
+    Returns:
+        dict: job_started, job_finished (ISO 8601, local time), elapsed_seconds, and when printed
+        num_openmp_threads, num_mpi_processes. Missing items are left out.
+    """
+    from datetime import datetime
+    lines = text.splitlines() if isinstance(text, str) else text
+    result = {}
+    for line in lines:
+        s = line.strip()
+        for key, head in (("job_started", "Job started at"), ("job_finished", "Job finished at")):
+            if s.startswith(head):
+                try:
+                    result[key] = datetime.strptime(s[len(head):].strip(), "%a %b %d %H:%M:%S %Y").isoformat()
+                except ValueError:
+                    result[key] = s[len(head):].strip()
+        if "OpenMP threads" in s:
+            result["num_openmp_threads"] = int(s.replace("=", ":").split(":")[-1])
+        elif "number of MPI processes" in s:
+            result["num_mpi_processes"] = int(s.split(":")[-1])
+    if "job_started" in result and "job_finished" in result:
+        try:
+            result["elapsed_seconds"] = (datetime.fromisoformat(result["job_finished"])
+                                         - datetime.fromisoformat(result["job_started"])).total_seconds()
+        except ValueError:
+            pass
+    return result

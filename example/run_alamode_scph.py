@@ -155,6 +155,7 @@ def parse_args():
     parser.add_argument("--dielectric", type=float, nargs="+", metavar="E", help="dielectric tensor for --borninfo-calculator")
     parser.add_argument("--nonanalytic", type=int, default=3, help="NONANALYTIC of the SCPH run when Born charges are given")
     parser.add_argument("--computer", default="mygarden5")
+    parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4)
     parser.add_argument("--njobs", type=int, default=2)
     parser.add_argument("--root", default=os.path.join(HERE, "run_alamode_scph"))
@@ -191,8 +192,12 @@ def main():
     code_mattersim = load_code(f"mattersim@{args.computer}")
     opt_calc = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                 "max_wallclock_seconds": 4 * 3600}
+    if args.gpu:
+        opt_calc["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
     opt_serial = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": 2},
                   "max_wallclock_seconds": 3600}
+    if args.gpu:   # relax / Born charges / elastic constants also on the GPU
+        opt_serial["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
     opt_anphon = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                   "max_wallclock_seconds": 12 * 3600,
                   "environment_variables": {"OMP_NUM_THREADS": str(args.cores)}}

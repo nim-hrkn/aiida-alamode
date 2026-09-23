@@ -521,6 +521,7 @@ def parse_args():
     parser.add_argument("--calculator-kwargs", default="{}", help='JSON kwargs of the calculator, e.g. \'{"model": "medium"}\'')
     parser.add_argument("--calc-label", help="legend label of the calculator")
     parser.add_argument("--computer", default="mygarden5")
+    parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4, help="cores of the MatterSim jobs")
     parser.add_argument("--njobs", type=int, default=1, help="number of slurm jobs for the displaced structures")
     parser.add_argument("--root", default=os.path.join(HERE, "run_alamode_phonons"))
@@ -578,6 +579,9 @@ def main():
                      "max_wallclock_seconds": 3600}
     opt_serial = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": 2},
                   "max_wallclock_seconds": 3600}
+    if args.gpu:   # MatterSim / SevenNet jobs (forces, relax, Born charges) on the GPU
+        opt_mattersim["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
+        opt_serial["custom_scheduler_commands"] = "#SBATCH --gres=gpu:1"
 
     # --- 0. input structure. The run directory is named after the formula unless --name is given.
     input_atoms = ase.io.read(args.structure, format=args.format or None)
