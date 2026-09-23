@@ -84,3 +84,11 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
   再現できる。cwd を渡すと結果ファイルも run ディレクトリに置かれる。
 - extract.py は使わず、MatterSim の結果から直接 DFSET を作る。
 - 上流の設計に合わせて、alm は suggest、opt、cv の 3 クラス、displace は pf クラスを使う。
+
+## provenance graph
+
+`verdi node graph generate <pk>`（Graphviz が必要）で AiiDA の全ノードを描ける。データノードまで含むと大きい
+（BaHfO₃ の κ の図で 150 ノード）ので、プロセスだけを「出力が次の入力になった」線で結ぶ
+`example/provenance_processes.py <pk> <out.png>` も用意した。CalcJob は赤の箱、WorkChain は橙、calcfunction は緑の楕円。
+BaHfO₃ の例: `run_v010/BaHfO3/BaHfO3_kappa_provenance_processes.png`（27 プロセス）、
+`run_v010_scph/BaHfO3/BaHfO3_scph_provenance_processes.png`（22 プロセス）。
