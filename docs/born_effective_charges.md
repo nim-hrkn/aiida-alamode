@@ -40,6 +40,13 @@ PbTe のような Te を含む系は扱えない。
   checkpoint は `~/models/anisonet/anisonet-stock.ckpt`（環境変数 `ANISONET_CHECKPOINT`）。
 - パッケージに推論 API は無いので、`notebooks/predict.ipynb` と同じ構成（E3nnModel、layers 2、mul 48、lmax 3、cutoff 5 Å）でモデルを組み、
   lightning の checkpoint の state_dict を読む。`aiida_alamode.ase_runner.DIELECTRIC_MODELS["anisonet"]` がそれ。
+- **num_neighbors の固定**。モデルの正規化定数 `num_neighbors` は、付属の predict notebook では「予測したい構造の集合」から
+  再計算されるため、同じ構造でも一緒に渡す構造によって予測値が変わる（Si を単独で渡すと 29、MgO は 57、学習集合は 34.96）。
+  runner では学習集合（train_dataset.p、6,706 構造、cutoff 5 Å）の値 34.956847 に固定してある。
+  固定後の予測（ε∞ の固有値）と文献値: Si 13.1（実験 11.7、学習データの MP 値 12.1〜13.7）、MgO 3.13（3.0、MP 3.21）、
+  NaCl 2.67（2.3）、BaHfO₃ 4.69（4.6〜4.9）、BaZrO₃ 4.93（4.9）、立方 BaTiO₃ 6.3（LDA 5.9〜6.7）、立方 SrTiO₃ 6.55（DFT 6.6）、
+  単斜 ZrO₂ 5.16 / 5.69 / 5.76（4.7〜5.2）、ルチル TiO₂ 7.71 / 9.26（実験 6.8 / 8.4）。
+  検査スクリプト: `example/test_epsinf.py --computer <label> [--gpu --device cuda]`（`alamode.epsinf_ase` を 9 物質に投げて表にする）。
 
 ## CalcJob と WorkChain の構成
 

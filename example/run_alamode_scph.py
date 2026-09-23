@@ -134,7 +134,7 @@ def parse_args():
     parser.add_argument("--l1-alpha", type=float, help="skip the CV and use this L1_ALPHA")
     # SCPH (tutorial: 50..400 K step 25, KMESH_SCPH 4, KMESH_INTERPOLATE 2, k mesh 8; MatterSim needs TMAX 700:
     # with TMAX 400 the structure loop at 75 K did not converge in 1000 iterations)
-    parser.add_argument("--tmin", type=float, default=50.0)
+    parser.add_argument("--tmin", type=float, default=100.0, help="lowest T; at 50 K the MatterSim BaTiO3 SCPH structure loop can diverge (anphon aborts with std::length_error)")
     parser.add_argument("--tmax", type=float, default=700.0, help="the cooling must start well above T_c (MatterSim: ~350-400 K)")
     parser.add_argument("--dt", type=float, default=50.0)
     parser.add_argument("--kmesh-scph", type=int, default=4)

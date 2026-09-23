@@ -6,7 +6,7 @@
 # finished steps are reused from run_v010*/BaHfO3/.node.json on rerun.
 set -e
 cd "$(dirname "$0")"
-COMMON="--structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 --borninfo-calculator sevennet-polar --dielectric 4.9 --njobs 2"
+COMMON="--structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 --borninfo-calculator sevennet-polar --dielectric-model anisonet --njobs 2"
 
 # 1. Z* (alamode.bec_ase) -> BORNINFO; harmonic phonons NONANALYTIC 0 / 3;
 # 2. cubic IFCs (cutoff 8 Bohr, 0.04 A) -> anphon RTA (10x10x10, NONANALYTIC 3) -> analyze_phonons

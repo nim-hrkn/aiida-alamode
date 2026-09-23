@@ -92,9 +92,17 @@ def _set_num_threads():
 
 
 def _get_device(device: str) -> str:
+    """'auto' -> 'cuda' when a GPU is actually usable (torch.cuda.is_available() can be True on a machine whose
+    GPU is in an error state and then fail at initialisation), otherwise 'cpu'."""
     import torch
     if device == "auto":
-        return "cuda" if torch.cuda.is_available() else "cpu"
+        try:
+            if torch.cuda.is_available():
+                torch.zeros(1).cuda()
+                return "cuda"
+        except Exception as err:   # e.g. "No CUDA GPUs are available" (GPU reset required)
+            print(f"CUDA is not usable ({err}); using the CPU", flush=True)
+        return "cpu"
     return device
 
 
@@ -336,11 +344,15 @@ DIELECTRIC_MODELS = {
     "anisonet": ("aiida_alamode.ase_runner", "_anisonet_dielectric",
                  {"checkpoint": os.environ.get("ANISONET_CHECKPOINT",
                                                os.path.expanduser("~/models/anisonet/anisonet-stock.ckpt")),
-                  "device": "cpu", "cutoff": 5.0}),
+                  "device": "cpu", "cutoff": 5.0,
+                  # normalisation constant of the trained model: mean number of neighbours (cutoff 5 A) of the
+                  # 6706 training structures (dataset/train_dataset.p). The predict notebook recomputes it from
+                  # the structures being predicted, which makes the result depend on the batch; keep it fixed.
+                  "num_neighbors": 34.956847}),
 }
 
 
-def _anisonet_dielectric(atoms, checkpoint, device="cpu", cutoff=5.0):
+def _anisonet_dielectric(atoms, checkpoint, device="cpu", cutoff=5.0, num_neighbors=34.956847):
     """eps_inf (3x3) of atoms with the pretrained AnisoNet (E3nnModel of the predict.ipynb notebook)."""
     import pandas as pd
     import torch
@@ -353,7 +365,7 @@ def _anisonet_dielectric(atoms, checkpoint, device="cpu", cutoff=5.0):
         ct = CartesianTensor("ij=ji")
         dataset = BaseDataset(pd.DataFrame({"structure": [atoms.copy()], "target": [[0.0] * 6]}), cutoff=cutoff)
         net = E3nnModel(in_dim=118, em_dim=48, in_attr_dim=118, em_attr_dim=48, irreps_out=str(ct), layers=2, mul=48,
-                        lmax=3, max_radius=dataset.cutoff, number_of_basis=15, num_neighbors=dataset.num_neighbors,
+                        lmax=3, max_radius=dataset.cutoff, number_of_basis=15, num_neighbors=num_neighbors,
                         reduce_output=True, same_em_layer=True)
         sd = torch.load(checkpoint, map_location="cpu", weights_only=False)["state_dict"]
         net.load_state_dict({k[len("model."):]: v for k, v in sd.items() if k.startswith("model.")})
