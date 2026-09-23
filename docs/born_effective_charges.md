@@ -94,3 +94,22 @@ python run_alamode_phonons.py --structure ZrO2_P2_1c.cif --supercell 2 2 2 --rel
 
 Z* は DFT の文献値（Zr 約 +5.4〜5.7、O 約 −2.3〜−3.2）と同程度で、ASR の残差は 0.1 e 以下。
 SevenNet-PM-M の格子定数は実験に近い。図は `example/run_v010/ZrO2*/…_phband_phdos.png`。
+
+## 例：立方 BaZrO₃ と BaHfO₃（5 原子、SevenNet-Polar の分布内）
+
+```
+python run_alamode_phonons.py --structure BaZrO3_Pm-3m.cif --supercell 2 2 2 --name BaZrO3 \
+    --nonanalytic 0 3 --borninfo-calculator sevennet-polar --dielectric 4.9 --emax 900
+python run_alamode_phonons.py --structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 \
+    --nonanalytic 0 3 --borninfo-calculator sevennet-polar --dielectric 4.9 --emax 900
+```
+
+| | 緩和後 a [Å]（実験） | Z*（A / B / O⊥ / O∥） | 調和近似の虚数モード |
+|---|---|---|---|
+| BaZrO₃ | 4.254（4.192） | 2.72 / 5.68 / −1.98 / −4.44 | R 点の八面体回転（3 重）−1.38 THz。実験格子定数では −2.12 THz（圧縮で強まる） |
+| BaHfO₃ | 4.204（4.171） | 2.74 / 5.42 / −1.99 / −4.19 | なし（R 点の最低 2.20 THz） |
+
+- BaZrO₃ の R 点の虚数は PBE 系の DFT でも見られる既知の結果（実験では零点振動と非調和で立方相が 2 K まで保たれる）。
+  Γ、X、M 点は安定で、LO-TO 分裂の検証には支障ない。有限温度の安定化は `run_alamode_scph.py` で確認できる。
+- BaHfO₃ は Γ-X-M-Γ-R-X-M-R の全経路で虚数なし。NA3 で Γ 点の最高 LO が 14.5 → 19 THz 程度に上がる。
+- Z* は DFT の文献値（BaZrO₃: 2.7 / 6.1 / −2.0 / −4.8）と近く、ASR 残差は小さい。ε∞ = 4.9 は文献値。
