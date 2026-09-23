@@ -52,4 +52,4 @@ python run_alamode_qha.py                            # ZnO: strained IFCs, elast
 cell with a calculator that provides them (`{"name": "sevennet-polar"}`, checkpoints from
 zenodo 10.5281/zenodo.21322761) and writes the BORNINFO file for anphon; the dielectric tensor comes from
 the model or the `dielectric` input.  `run_alamode_phonons.py --borninfo-calculator sevennet-polar
---dielectric 6.7 --nonanalytic 0 3` uses it.  See `docs/born_effective_charges.md`.
+--dielectric 6.7 --nonanalytic 0 3` uses it (cubic BaTiO3; monoclinic ZrO2 example in the docs).  See `docs/born_effective_charges.md`.

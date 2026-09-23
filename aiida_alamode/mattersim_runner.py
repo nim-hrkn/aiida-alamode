@@ -157,6 +157,15 @@ def _atoms_to_dict(atoms, filename: str) -> dict:
             "symbols": atoms.get_chemical_symbols()}
 
 
+def _write_extxyz_copy(filename: str, atoms):
+    import ase.io
+    from ase.calculators.singlepoint import SinglePointCalculator
+    copy = atoms.copy()
+    copy.calc = SinglePointCalculator(copy, energy=atoms.get_potential_energy(), forces=atoms.get_forces(),
+                                      stress=atoms.get_stress())
+    ase.io.write(filename, copy, format="extxyz")
+
+
 def _relax(atoms, job: dict) -> dict:
     from ase.filters import FrechetCellFilter
     from ase.optimize import BFGS
@@ -380,8 +389,9 @@ def run(job: dict) -> dict:
         elif mode != "forces":
             raise ValueError(f"unknown mode={mode}.")
         structures.append(_atoms_to_dict(atoms, filename))
-        # keep a human-readable copy
-        ase.io.write(f"{os.path.splitext(filename)[0]}.mattersim.extxyz", atoms, format="extxyz")
+        # keep a human-readable copy (energy, forces, stress only: calculators such as SevenNet-Polar leave
+        # per-atom 3x3 tensors in the results, which the extxyz writer cannot store)
+        _write_extxyz_copy(f"{os.path.splitext(filename)[0]}.mattersim.extxyz", atoms)
         forces = atoms.get_forces()
         print(f"{filename}: E = {atoms.get_potential_energy():.6f} eV, "
               f"|F|max = {abs(forces).max():.4e} eV/A, "

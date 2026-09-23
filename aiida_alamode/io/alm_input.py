@@ -363,30 +363,23 @@ doi:10.1016/j.commatsci.2010.05.010
 
 
 def _make_kpoint_kpmode1(atoms, nkpt=51, use_first_kpath=False):
-    bandpath_dic = _make_all_bandpath()
+    """&kpoint lines (KPMODE = 1) along the standard band path of the Bravais lattice (ASE / Setyawan-Curtarolo).
 
+    Labels may have two characters (M1, H1, ...), so the path string is parsed with ASE, not per character.
+    """
+    from ase.dft.kpoints import parse_path_string
     lat = atoms.cell.get_bravais_lattice()
-    special_kpoits = lat.get_special_points()
-    kpath = bandpath_dic[lat.name]
+    special_kpoints = lat.get_special_points()
+    segments = parse_path_string(lat.special_path)
     if use_first_kpath:
-        if "," in kpath:
-            kpath = kpath.split(",")[0]
-            if use_first_kpath:
-                kpath = kpath[0]  # use only the first kpath
+        segments = segments[:1]
 
-    lines = []
-    lines.append('1')
-    for k1, k2 in zip(kpath[:-1], kpath[1:]):
-        if k1 == "," or k2 == ",":
-            continue
-        kpoint1 = list(map(str, special_kpoits[k1]))
-        kpoint2 = list(map(str, special_kpoits[k2]))
-        _s = [k1]
-        _s.extend(kpoint1)
-        _s.append(k2)
-        _s.extend(kpoint2)
-        _s.append(str(nkpt))
-        lines.append(" ".join(_s))
+    lines = ['1']
+    for segment in segments:
+        for k1, k2 in zip(segment[:-1], segment[1:]):
+            kpoint1 = list(map(str, special_kpoints[k1]))
+            kpoint2 = list(map(str, special_kpoints[k2]))
+            lines.append(" ".join([k1] + kpoint1 + [k2] + kpoint2 + [str(nkpt)]))
     return lines
 
 

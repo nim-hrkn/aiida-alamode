@@ -61,3 +61,36 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
 - **ε∞ は別に用意する**。SevenNet-Polar の公開 checkpoint は ε∞ を返さない。
 - **精度の目安**。立方 BaTiO₃（a = 4.0 Å）で PS-M は Ba 2.72、Ti 7.74、O −2.15（⊥）/ −6.15（∥）。
   DFT（LDA）の文献値は Ba 2.75、Ti 7.16、O −2.11 / −5.69。ASR の残差は 0.01 e 程度。
+
+## 例：単斜晶 ZrO₂（バデレアイト、P2₁/c）
+
+SevenNet-Polar の学習データに ZrO₂ が入っているので、Z* を得るのに最も適した系である。2 通りの実行例:
+
+```
+# 力は MatterSim、Z* は SevenNet-PS-M
+python run_alamode_phonons.py --structure ZrO2_P2_1c.cif --supercell 2 2 2 --relax full --idealize --name ZrO2 \
+    --nonanalytic 0 3 --borninfo-calculator sevennet-polar --dielectric 4.9 --emax 900
+# 力も Z* も SevenNet-PM-M（マルチタスク checkpoint、Li O P Zr のみ）
+python run_alamode_phonons.py --structure ZrO2_P2_1c.cif --supercell 2 2 2 --relax full --idealize --name ZrO2_sevennet_pm \
+    --calculator sevennet --calculator-kwargs '{"model": "~/models/sevennet-polar/SevenNet-PM-M.pth"}' --calc-label SevenNet-PM-M \
+    --nonanalytic 0 3 --borninfo-calculator sevennet-polar --borninfo-kwargs '{"model": "~/models/sevennet-polar/SevenNet-PM-M.pth"}' \
+    --dielectric 4.9 --emax 900
+```
+
+- `--relax full --idealize`：単斜晶なので格子の形も緩和し、緩和後の 10⁻⁶ のノイズを spglib で除く（無いと alm が
+  「自由な IFC 0 個」になる）。
+- 単斜晶のバンド経路には M1 や H1 のような 2 文字のラベルがあり、v0.9 の経路生成はそれを 1 文字ずつ分解して落ちた
+  （v0.10 で ASE の `parse_path_string` に置き換え）。
+- SevenNet の calculator は結果に nat×3×3 の Z* を残すので、runner が書く extxyz のコピーはエネルギー、力、応力だけにした。
+- ε∞ = 4.9 は単斜晶 ZrO₂ の DFT 値（4.7〜5.2、Zhao & Vanderbilt, PRB 65, 075105 (2002)）の等方近似。
+
+結果（2026-09-23）:
+
+| | 格子定数 a, b, c [Å] | Z* 対角（Zr / O） | Γ 点の最高振動数 NA0 → NA3 | 虚数モード |
+|---|---|---|---|---|
+| 実験（Howard 1988） | 5.151, 5.212, 5.317 | — | — | — |
+| MatterSim + PS-M | 5.235, 5.249, 5.440 | 5.54, 5.44, 5.01 / −2.5〜−2.8 | 21.6 → 23.8 THz | NA0 で −0.8 THz（Y-D 間）、NA3 で消える |
+| SevenNet-PM-M | 5.181, 5.252, 5.363 | 5.52, 5.52, 4.91 / −2.5〜−2.8 | 21.4 → 23.2 THz | なし |
+
+Z* は DFT の文献値（Zr 約 +5.4〜5.7、O 約 −2.3〜−3.2）と同程度で、ASR の残差は 0.1 e 以下。
+SevenNet-PM-M の格子定数は実験に近い。図は `example/run_v010/ZrO2*/…_phband_phdos.png`。
