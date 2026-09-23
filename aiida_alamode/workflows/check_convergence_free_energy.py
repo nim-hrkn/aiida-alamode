@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from ase.units import Ry
 
-from compute_phonon_props import PhononCalculator
+from .compute_phonon_props import PhononCalculator
 from .model_selection import ForceConstantModelSelector
 from .dfhistoryfile import DfHistoryData
 from io import TextIOWrapper

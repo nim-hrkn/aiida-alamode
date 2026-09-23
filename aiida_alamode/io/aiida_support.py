@@ -11,8 +11,7 @@
 #
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from ..io.lammps_support import write_lammps_data
-from ase import io
+from ..io.ase_support import write_structure
 
 from aiida.plugins import DataFactory
 from aiida.orm import Str
@@ -20,11 +19,11 @@ from aiida.orm import Str
 import os
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-List = DataFactory('list')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+List = DataFactory('core.list')
 
 
 def folder_prepare_object(folder, target,
@@ -97,33 +96,17 @@ def folder_prepare_object(folder, target,
             target_filepath = os.path.join(cwd, filename)
             if format is None:
                 raise ValueError(f'unknown format. format={format}')
-            if format == "LAMMPS":
-                with open(target_filepath, "w") as f:
-                    write_lammps_data(
-                        f, atoms, atom_style='atomic', force_skew=True)
-            elif format == "QE":
-                io.write(target_filepath, style="espresso-in")
-            elif format == "VASP":
-                io.write(target_filepath, style="vasp")
-            else:
-                raise ValueError(f'unknown format. format={format}')
+            with open(target_filepath, "w") as f:
+                write_structure(f, atoms, format)
             folder.insert_path(target_filepath,
                                dest_name=filename)
             return filename
         else:
             # write into the folder directly.
+            if format is None:
+                raise ValueError(f'unknown format. format={format}')
             with folder.open(filename, 'w', encoding='utf8') as handle:
-                if format is None:
-                    raise ValueError(f'unknown format. format={format}')
-                if format == "LAMMPS":
-                    write_lammps_data(
-                        handle, atoms, atom_style='atomic', force_skew=True)
-                elif format == "QE":
-                    io.write(handle, style="espresso-in")
-                elif format == "VASP":
-                    io.write(handle, style="vasp")
-                else:
-                    raise ValueError(f'unknown format. format={format}')
+                write_structure(handle, atoms, format)
             return filename
 
     else:

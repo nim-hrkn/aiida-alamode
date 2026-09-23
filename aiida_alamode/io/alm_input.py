@@ -508,7 +508,7 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
             general.remove("MASS")
 
     nat = superstructure.get_scaled_positions().shape[0]
-    if mode not in ["phonons", "RTA"]:
+    if mode in ["suggest", "opt", "optimize", "cv"]:   # NAT is an alm variable; anphon rejects it
         general["NAT"] = str(nat)
 
     if "general" not in dic.keys():
@@ -521,7 +521,9 @@ def atoms_to_alm_in(mode: str, superstructure: Atoms,
         if "FCSXML" not in dic["general"].keys():
             raise KeyError(f"FCSXML is necessary in mode={mode}.")
 
-    interaction = {"NORDER": norder}
+    # keep the user entries of &interaction such as NBODY
+    interaction = dict(dic.get("interaction") or {})
+    interaction["NORDER"] = norder
     dic["interaction"] = interaction
 
     cell = []

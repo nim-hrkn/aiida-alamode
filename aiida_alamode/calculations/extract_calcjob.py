@@ -26,11 +26,11 @@ from ..common.base import AlamodeBaseCalculation
 
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-TrajectoryData = DataFactory('array.trajectory')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+TrajectoryData = DataFactory('core.array.trajectory')
 
 
 class ExtractCalculation(AlamodeBaseCalculation):

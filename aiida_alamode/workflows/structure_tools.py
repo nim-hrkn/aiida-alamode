@@ -21,11 +21,11 @@ from aiida_alamode.io import write_lammps_data
 
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-List = DataFactory('list')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+List = DataFactory('core.list')
 
 
 @calcfunction

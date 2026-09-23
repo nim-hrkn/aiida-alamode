@@ -27,12 +27,12 @@ from ..io.displacement import displacemenpattern_to_lines
 from alm import ALM
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-List = DataFactory('list')
-Dict = DataFactory('dict')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+List = DataFactory('core.list')
+Dict = DataFactory('core.dict')
 
 
 @calcfunction

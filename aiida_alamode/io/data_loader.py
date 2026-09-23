@@ -19,11 +19,11 @@ from aiida.plugins import DataFactory
 import pandas as pd
 import re
 
-StructureData = DataFactory('structure')
-SinglefileData = DataFactory('singlefile')
-FolderData = DataFactory('folder')
-List = DataFactory('list')
-ArrayData = DataFactory('array')
+StructureData = DataFactory('core.structure')
+SinglefileData = DataFactory('core.singlefile')
+FolderData = DataFactory('core.folder')
+List = DataFactory('core.list')
+ArrayData = DataFactory('core.array')
 
 
 def load_anphon_kl(data: str | SinglefileData):

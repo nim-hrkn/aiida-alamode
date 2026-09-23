@@ -26,13 +26,16 @@ from ..io.misc import zerofillStr
 #
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-List = DataFactory('list')
-LammpsPotential = DataFactory('lammps.potential')
-TrajectoryData = DataFactory('array.trajectory')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+List = DataFactory('core.list')
+try:
+    LammpsPotential = DataFactory('lammps.potential')   # aiida-lammps
+except Exception:   # the plugin is not installed: the workchain can be imported but not used
+    LammpsPotential = SinglefileData
+TrajectoryData = DataFactory('core.array.trajectory')
 
 
 # pack input and code

@@ -15,7 +15,7 @@ from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from ase import Atoms
 
 from aiida.plugins import DataFactory
-SinglefileData = DataFactory('singlefile')
+SinglefileData = DataFactory('core.singlefile')
 
 
 anphon_bin = os.path.join(os.environ['HOME'], 'src', 'alamode', '_build', 'anphon', 'anphon')

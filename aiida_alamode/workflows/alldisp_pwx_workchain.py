@@ -28,9 +28,9 @@ from itertools import cycle
 #
 
 
-ArrayData = DataFactory('array')
-FolderData = DataFactory('folder')
-List = DataFactory('list')
+ArrayData = DataFactory('core.array')
+FolderData = DataFactory('core.folder')
+List = DataFactory('core.list')
 
 
 # pack input and code

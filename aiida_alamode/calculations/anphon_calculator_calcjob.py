@@ -30,11 +30,11 @@ from .compute_phonon_props import PhononCalculator
 AU2ANG = 0.529177
 
 
-StructureData = DataFactory('structure')
-SinglefileData = DataFactory('singlefile')
-FolderData = DataFactory('folder')
-List = DataFactory('list')
-ArrayData = DataFactory('array')
+StructureData = DataFactory('core.structure')
+SinglefileData = DataFactory('core.singlefile')
+FolderData = DataFactory('core.folder')
+List = DataFactory('core.list')
+ArrayData = DataFactory('core.array')
 
 
 class AnphonCalculatorCalculation(AlamodeBaseCalculation):

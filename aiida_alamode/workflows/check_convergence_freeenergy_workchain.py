@@ -7,9 +7,9 @@ from aiida.orm import Code
 from .check_convergence_free_energy import run_main_
 
 
-SinglefileData = DataFactory('singlefile')
-StructureData = DataFactory('structure')
-ArrayData = DataFactory('array')
+SinglefileData = DataFactory('core.singlefile')
+StructureData = DataFactory('core.structure')
+ArrayData = DataFactory('core.array')
 FrameData = DataFactory('dataframe.frame')
 
 

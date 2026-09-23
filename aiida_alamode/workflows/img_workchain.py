@@ -23,12 +23,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-ArrayData = DataFactory('array')
-SinglefileData = DataFactory('singlefile')
-FolderData = DataFactory('folder')
-List = DataFactory('list')
-StructureData = DataFactory('structure')
-TrajectoryData = DataFactory('array.trajectory')
+ArrayData = DataFactory('core.array')
+SinglefileData = DataFactory('core.singlefile')
+FolderData = DataFactory('core.folder')
+List = DataFactory('core.list')
+StructureData = DataFactory('core.structure')
+TrajectoryData = DataFactory('core.array.trajectory')
 
 
 def make_pattern_files(displacement_patterns: list, cwd: str, filename_template: str):

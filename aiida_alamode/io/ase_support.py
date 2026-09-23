@@ -22,11 +22,11 @@ from aiida.engine import calcfunction
 
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-List = DataFactory('list')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+List = DataFactory('core.list')
 
 
 def ase_atoms_supply_Z_from_mass(atoms):
@@ -56,6 +56,40 @@ def get_prim_conv_atoms(atoms):
                            numbers=numbers, pbc=atoms.pbc)
 
     return prim_structure, conv_structure
+
+
+def write_structure(handle, atoms: Atoms, format: str):
+    """write atoms to a text handle in the structure format of the alamode tools (displace.py, extract.py).
+
+    QE: a pw.x input with dummy pseudopotentials ({symbol}.UPF); pw.x is not run on it, it is only
+    the template that displace.py --QE reads.
+
+    Args:
+        handle: writable text handle.
+        atoms (Atoms): the structure.
+        format (str): 'LAMMPS', 'QE' or 'VASP'.
+    """
+    from .lammps_support import write_lammps_data
+    if format == "LAMMPS":
+        write_lammps_data(handle, atoms, atom_style='atomic', force_skew=True)
+    elif format == "QE":
+        from ase.io.espresso import write_espresso_in
+        pseudo = {s: f"{s}.UPF" for s in sorted(set(atoms.get_chemical_symbols()))}
+        write_espresso_in(handle, atoms, pseudopotentials=pseudo, kpts=None,
+                          input_data={'calculation': 'scf', 'tprnfor': True, 'tstress': True,
+                                      'pseudo_dir': '.'})
+    elif format == "VASP":
+        io.write(handle, atoms, format="vasp", direct=True)
+    else:
+        raise ValueError(f'unknown format. format={format}')
+
+
+def structure_io_format(format: str) -> str:
+    """ase.io format name of the structure files of the alamode tools."""
+    table = {"LAMMPS": "lammps-data", "QE": "espresso-in", "VASP": "vasp"}
+    if format not in table:
+        raise ValueError(f'unknown format. format={format}')
+    return table[format]
 
 
 def load_atoms_bare(filename: str, format: str, supply_Z_from_mass=True) -> Atoms:

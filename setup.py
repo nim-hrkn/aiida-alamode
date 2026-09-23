@@ -7,8 +7,7 @@ if __name__ == '__main__':
         kwargs = json.load(info)
 
     print(kwargs)
-    setup(reentry_register=True,
-          include_package_data=True,
+    setup(include_package_data=True,
           packages=find_packages(exclude=['aiida']),
           **kwargs
           )

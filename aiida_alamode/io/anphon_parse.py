@@ -3,7 +3,7 @@ import re
 import io
 from aiida.plugins import DataFactory
 
-SinglefileData = DataFactory('singlefile')
+SinglefileData = DataFactory('core.singlefile')
 
 def read_filelike(handle):
     if isinstance(handle, io.TextIOBase):

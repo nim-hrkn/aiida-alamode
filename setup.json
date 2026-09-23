@@ -1,7 +1,7 @@
 {
-    "name" : "aiida-alamode",
-    "version" : "0.9.0",
-    "entry_points" : {
+    "name": "aiida-alamode",
+    "version": "0.10.0",
+    "entry_points": {
         "aiida.workflows": [
             "alamode.force_simulator_lammps = aiida_alamode.workflows.alldisp_lammps_workchain: ForcesLammpsWorkChain",
             "alamode.ALM_suggest = aiida_alamode.workflows.alm_ALM: ALMSuggestWorkChain",
@@ -13,10 +13,10 @@
             "alamode.img.dos_calculator = aiida_alamode.workflows.img_phononcalculation_workchain: DosImgPhononCalculatorWorkChain",
             "alamode.img.thermo_calculator = aiida_alamode.workflows.img_phononcalculation_workchain: ThermoImgPhononCalculatorWorkChain",
             "alamode.make_best_supercell = aiida_alamode.workflows.make_best_supercell_workchain: BestSupercellWorkChain",
-            "alamode.check_convergence_freeenergy = aiida_alamode.workflows.check_convergence_freeenergy_workchain: checkConvergenceFreeenergyWorkchain"
+            "alamode.check_convergence_freeenergy = aiida_alamode.workflows.check_convergence_freeenergy_workchain: checkConvergenceFreeenergyWorkchain",
+            "alamode.force_simulator_mattersim = aiida_alamode.workflows.alldisp_mattersim_workchain: ForcesMattersimWorkChain"
         ],
-	"aiida.calculations": [
-	    "alamode.lammps   = aiida_alamode.calculations.lammps_calcjob: lammps_CalcJob" ,
+        "aiida.calculations": [
             "alamode.alm_suggest   = aiida_alamode.calculations.alm_calcjob: AlmSuggestCalculation",
             "alamode.alm_opt   = aiida_alamode.calculations.alm_calcjob: AlmOptCalculation",
             "alamode.anphon = aiida_alamode.calculations.anphon_calcjob: AnphonCalculation",
@@ -24,16 +24,48 @@
             "alamode.displace_pf   = aiida_alamode.calculations.displace_calcjob: DisplacePfCalculation",
             "alamode.displace_random   = aiida_alamode.calculations.displace_calcjob: DisplaceRandomCalculation",
             "alamode.extract   = aiida_alamode.calculations.extract_calcjob: ExtractCalculation",
-            "alamode.analyze_phonons = aiida_alamode.calculations.analyze_calcjob: AnalyzePhononsCalculation"
-	],
-	"aiida.parsers":  [
-	    "alamode.lammps  = aiida_alamode.calculations.lammps_calcjob: lammps_ParseJob" ,
+            "alamode.analyze_phonons = aiida_alamode.calculations.analyze_calcjob: AnalyzePhononsCalculation",
+            "alamode.alm_cv = aiida_alamode.calculations.alm_calcjob: AlmCvCalculation",
+            "alamode.mattersim = aiida_alamode.calculations.mattersim_calcjob: MattersimForcesCalculation",
+            "alamode.mattersim_relax = aiida_alamode.calculations.mattersim_calcjob: MattersimRelaxCalculation",
+            "alamode.mattersim_md = aiida_alamode.calculations.mattersim_calcjob: MattersimMdCalculation",
+            "alamode.mattersim_elastic = aiida_alamode.calculations.mattersim_calcjob: MattersimElasticCalculation",
+            "alamode.mattersim_bec = aiida_alamode.calculations.mattersim_calcjob: MattersimBecCalculation"
+        ],
+        "aiida.parsers": [
             "alamode.alm   = aiida_alamode.calculations.alm_calcjob: AlmParser",
             "alamode.anphon = aiida_alamode.calculations.anphon_calcjob: AnphonParser",
             "alamode.anphon_calculator = aiida_alamode.calculations.anphon_calculator_calcjob: AnphonCalculatorParser",
             "alamode.displace   = aiida_alamode.calculations.displace_calcjob: DisplaceParser",
             "alamode.extract   = aiida_alamode.calculations.extract_calcjob: ExtractParser",
-            "alamode.analyze_phonons = aiida_alamode.calculations.analyze_calcjob: AnalyzePhononsParser"
+            "alamode.analyze_phonons = aiida_alamode.calculations.analyze_calcjob: AnalyzePhononsParser",
+            "alamode.mattersim = aiida_alamode.calculations.mattersim_calcjob: MattersimParser",
+            "alamode.mattersim_relax = aiida_alamode.calculations.mattersim_calcjob: MattersimRelaxParser",
+            "alamode.mattersim_md = aiida_alamode.calculations.mattersim_calcjob: MattersimMdParser",
+            "alamode.mattersim_elastic = aiida_alamode.calculations.mattersim_calcjob: MattersimElasticParser",
+            "alamode.mattersim_bec = aiida_alamode.calculations.mattersim_calcjob: MattersimBecParser"
+        ],
+        "console_scripts": [
+            "alamode-mattersim = aiida_alamode.mattersim_runner:main"
+        ]
+    },
+    "install_requires": [
+        "aiida-core>=2.0",
+        "ase",
+        "spglib",
+        "numpy",
+        "pandas",
+        "matplotlib"
+    ],
+    "extras_require": {
+        "mattersim": [
+            "mattersim"
+        ],
+        "lammps": [
+            "aiida-lammps"
+        ],
+        "sevennet-polar": [
+            "sevenn @ git+https://github.com/AugustinLu/SevenNet-Polar.git"
         ]
     }
 }

@@ -26,7 +26,7 @@ from aiida.common.exceptions import InputValidationError
 
 from ..common.base import AlamodeBaseCalculation
 from ..io.lammps_support import write_lammps_data
-from ..io.ase_support import load_atoms_bare
+from ..io.ase_support import load_atoms_bare, write_structure, structure_io_format
 from ..io.displacement import displacemenpattern_to_lines
 from ..io.aiida_support import save_output_folder_files, folder_prepare_object
 
@@ -36,12 +36,22 @@ import numpy as np
 from ase import io
 
 
-ArrayData = DataFactory('array')
-SinglefileData = DataFactory('singlefile')
-FolderData = DataFactory('folder')
-List = DataFactory('list')
-StructureData = DataFactory('structure')
-TrajectoryData = DataFactory('array.trajectory')
+ArrayData = DataFactory('core.array')
+SinglefileData = DataFactory('core.singlefile')
+FolderData = DataFactory('core.folder')
+List = DataFactory('core.list')
+StructureData = DataFactory('core.structure')
+TrajectoryData = DataFactory('core.array.trajectory')
+
+
+_PATTERN_FILE_EXTS = ["harmonic", "cubic", "quartic", "quintic", "sextic"]
+
+
+def _pattern_file_exts(norder: int, npattern: int) -> list:
+    """names of the pattern files: the last npattern orders up to norder."""
+    if npattern < 1 or npattern > norder:
+        raise InputValidationError(f"the number of patterns ({npattern}) must be 1..norder ({norder}).")
+    return _PATTERN_FILE_EXTS[norder - npattern:norder]
 
 
 def _get_str_outfiles(format_: str, prefix: str = "disp", counter: str = "*"):
@@ -113,15 +123,8 @@ def _place_structure_org_file(atoms: Atoms,
     if os.path.isfile(structure_org_filepath):
         return structure_org_filepath
 
-    if format == "LAMMPS":
-        with open(structure_org_filepath, "w") as f:
-            write_lammps_data(f, atoms, atom_style='atomic', force_skew=True)
-    elif format == "QE":
-        io.write(structure_org_filepath, style="espresso-in")
-    elif format == "VASP":
-        io.write(structure_org_filepath, style="vasp")
-    else:
-        raise ValueError(f'unknown format. format={format}')
+    with open(structure_org_filepath, "w") as f:
+        write_structure(f, atoms, format)
 
     return structure_org_filepath
 
@@ -291,21 +294,15 @@ class DisplacePfCalculation(AlamodeBaseCalculation):
         if len(structure_org_filename) == 0:
             raise ValueError("len(structure_org_filename)==0")
         format = self.inputs.format.value
-        if format == "LAMMPS":
+        try:
             with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                write_lammps_data(
-                    handle, atoms, atom_style='atomic', force_skew=True)
-        elif format == "QE":
-            with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                io.write(handle, style="espresso-in")
-        elif format == "VASP":
-            with folder.open(structure_org_filename, 'w', encoding='utf8') as handle:
-                io.write(handle, style="vasp")
-        else:
-            raise InputValidationError(
-                f'unsupported format open structure_org. format={self.format.value}')
+                write_structure(handle, atoms, format)
+        except ValueError as err:
+            raise InputValidationError(f'unsupported format of structure_org: {err}')
 
-        pattern_file_ext_list = ["harmonic", "cubic"]
+        # the pattern list holds the last len(pattern) orders up to norder:
+        # norder=2 with one pattern is the cubic one (as the tutorial's displace.py -pf *.pattern_ANHARM3).
+        pattern_file_ext_list = _pattern_file_exts(self.inputs.norder.value, len(self.inputs.pattern.get_list()))
         processed_list = []
         for pattern_file_ext, content in zip(pattern_file_ext_list, self.inputs.pattern.get_list()):
             pattern_filename = f"{prefix}.{pattern_file_ext}"
@@ -322,10 +319,7 @@ class DisplacePfCalculation(AlamodeBaseCalculation):
                                    f"--prefix={self.inputs.prefix.value}",
                                    f"--mag={str(self.inputs.mag.value)}", "-pf"]
 
-        # process self.inputs.pattern again
-        for pattern_file_ext, content in zip(pattern_file_ext_list, self.inputs.pattern.get_list()):
-            pattern_filename = f"{prefix}.{pattern_file_ext}"
-            codeinfo.cmdline_params.append(pattern_filename)
+        codeinfo.cmdline_params.extend(processed_list)
 
         # change self.options.output_filename
 
@@ -462,16 +456,7 @@ def _parse_displace(handle):
 
 
 def _read_structure(structure_filepath, format, style=None):
-    if format == "LAMMPS":
-        atoms = io.read(structure_filepath, style='lammps-data',
-                        atom_style=style)
-    elif format == "QE":
-        atoms = io.read(structure_filepath, style="espresso-in")
-    elif format == "VASP":
-        atoms = io.read(structure_filepath, style="vasp")
-    else:
-        raise ValueError(f'unknown format. format={format}')
-    return atoms
+    return load_atoms_bare(structure_filepath, structure_io_format(format))
 
 
 class DisplaceParser(Parser):
@@ -516,21 +501,19 @@ class DisplaceParser(Parser):
                                                 self.node.inputs.prefix.value)
 
         format = self.node.inputs.format.value
-        if format == "LAMMPS":
-            io_format = 'lammps-data'
-        elif format == "QE":
-            io_format = "espresso-in"
-        elif format == "VASP":
-            io_format = "vasp"
-        else:
-            # (f'unknown format. format={self.format.value}')
+        try:
+            io_format = structure_io_format(format)
+        except ValueError:
             return self.exit_codes.ERROR_UNEXPECTED_PARSER_EXCEPTION
 
         import io
 
         displaced_structures = []
-        for _dispfile_in in output_folder.list_object_names():
-            if fnmatch(_dispfile_in, disp_input_filename):
+        dispfiles = [name for name in output_folder.list_object_names() if fnmatch(name, disp_input_filename)]
+        prefix = self.node.inputs.prefix.value
+        dispfiles.sort(key=lambda name: (len(name), name))   # disp1, disp2, ..., disp10 (zero-filled or not)
+        for _dispfile_in in dispfiles:
+            if True:
                 _content = output_folder.get_object_content(_dispfile_in)
                 # read as ase Atoms,
                 try:

@@ -29,11 +29,11 @@ from ..io.alm_input import make_alm_in, atoms_to_alm_in
 from ..io.displacement import lines_to_displacementpattern
 
 
-StructureData = DataFactory('structure')
-SinglefileData = DataFactory('singlefile')
-FolderData = DataFactory('folder')
-List = DataFactory('list')
-ArrayData = DataFactory('array')
+StructureData = DataFactory('core.structure')
+SinglefileData = DataFactory('core.singlefile')
+FolderData = DataFactory('core.folder')
+List = DataFactory('core.list')
+ArrayData = DataFactory('core.array')
 
 
 def _parse_alm_suggest_output(filename=None, handle=None):
@@ -404,7 +404,10 @@ class AlmOptCalculation(AlmBaseCalculation):
             elif isinstance(fc2xml, SinglefileData):
                 param["optimize"]["FC2XML"] = fc2xml_filename
 
+        # the same cutoff as in the suggest step; otherwise &cutoff is None for every order
+        # and the anharmonic fit is rank deficient.
         alm_param = atoms_to_alm_in("opt", structure,
+                                    cutoff=self.inputs.cutoff.get_dict(),
                                     dic=param, norder=norder,
                                     prefix=prefix_value)
         with folder.open(self.options.input_filename, 'w', encoding='utf8') as handle:
@@ -422,11 +425,50 @@ class AlmOptCalculation(AlmBaseCalculation):
         calcinfo.retrieve_list = ['_aiidasubmit.sh',
             self.options.input_filename, self.options.output_filename]
 
-        for ext in ["fcs", "xml"]:
-            filename = f"{prefix_value}.{ext}"
-            calcinfo.retrieve_list.append(filename)
+        calcinfo.retrieve_list.extend(self._retrieve_files(prefix_value))
 
         return calcinfo
+
+    def _retrieve_files(self, prefix_value: str) -> list:
+        return [f"{prefix_value}.{ext}" for ext in ["fcs", "xml"]]
+
+
+def _parse_alm_cvscore(content: str) -> dict:
+    """{prefix}.cvscore -> alpha of the minimum CV score and the table (alpha, fitting error, cv score, ...)."""
+    result = {"alpha_min": None, "cvscore": []}
+    for line in content.splitlines():
+        if line.startswith("# Minimum CVSCORE at alpha"):
+            result["alpha_min"] = float(line.split("=")[-1])
+        elif line.strip() and not line.startswith("#"):
+            result["cvscore"].append([float(x) for x in line.split()])
+    if result["alpha_min"] is None:
+        raise ValueError("'Minimum CVSCORE at alpha' could not be found")
+    return result
+
+
+class AlmCvCalculation(AlmOptCalculation):
+    """alm mode="opt" with cross validation (CV > 0 in param["optimize"], LMODEL = elastic-net).
+
+    Only the CV scores are produced: results['alpha_min'] is the L1_ALPHA of the minimum CV score,
+    to be used in a following AlmOptCalculation with CV = 0.
+
+    default input filename: alm_cv.in
+    default output filename: alm_cv.out
+    """
+    _MODE = "cv"
+
+    @classmethod
+    def define(cls, spec):
+        super().define(spec)
+        spec.inputs['mode'].default = lambda: Str(cls._MODE)
+        spec.inputs['metadata']['options']['input_filename'].default = 'alm_cv.in'
+        spec.inputs['metadata']['options']['output_filename'].default = 'alm_cv.out'
+        spec.output('cvscore_file', valid_type=SinglefileData, help='{prefix}.cvscore')
+        spec.exit_code(335, 'ERROR_OUTPUT_CVSCORE_MISSING',
+                       message='The retrieved folder did not contain the cvscore file.')
+
+    def _retrieve_files(self, prefix_value: str) -> list:
+        return [f"{prefix_value}.cvscore", f"{prefix_value}.cvset*"]
 
 
 class AlmParser(Parser):
@@ -446,7 +488,24 @@ class AlmParser(Parser):
         if mode == "optimize":
             mode = "opt"
 
-        if mode == "suggest":
+        if mode == "cv":
+            try:
+                output_folder = self.retrieved
+            except Exception:
+                return self.exit_codes.ERROR_NO_RETRIEVED_FOLDER
+            _, exit_code = save_output_folder_files(output_folder, cwd, alm_prefix_node)
+            filename = f"{alm_prefix_node.value}.cvscore"
+            if filename not in output_folder.list_object_names():
+                return self.exit_codes.ERROR_OUTPUT_CVSCORE_MISSING
+            try:
+                result = _parse_alm_cvscore(output_folder.get_object_content(filename))
+            except ValueError:
+                return self.exit_codes.ERROR_OUTPUT_STDOUT_INCOMPLETE
+            with output_folder.open(filename, "rb") as handle:
+                self.out('cvscore_file', SinglefileData(handle, filename=filename))
+            self.out('results', Dict(dict=result))
+
+        elif mode == "suggest":
             try:
                 output_folder = self.retrieved
             except Exception:
@@ -512,13 +571,16 @@ class AlmParser(Parser):
             if filename in output_folder.list_object_names():
 
                 with output_folder.open(filename, "rb") as handle:
-
-                    output_data = SinglefileData(handle)
+                    output_data = SinglefileData(handle, filename=filename)
                 self.out(key, output_data)
+            else:
+                return self.exit_codes.ERROR_OUTPUT_XML_MISSING
 
             key = "force_constants"
             filename = result["outputfiles"][key]
             if filename in output_folder.list_object_names():
                 with output_folder.open(filename, "rb") as handle:
-                    output_data = SinglefileData(handle)
+                    output_data = SinglefileData(handle, filename=filename)
                 self.out(key, output_data)
+            else:
+                return self.exit_codes.ERROR_OUTPUT_FCS_MISSING

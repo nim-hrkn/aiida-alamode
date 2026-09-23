@@ -282,11 +282,13 @@ def print_cumulative_thermal_conductivity(analyze_obj,  cumulative_mode,  file_r
 
     if cumulative_mode == "cumulative":
         if return_cmd:
+            # alamode >= 1.5: nsample and gridtype follow (analyze_phonons segfaults without them)
             command = [file_result, calc, avg,
                        str(beg_s), str(end_s),
                        isotope, file_isotope,
                        str(max_len),
-                       str(d_len), options.temp]
+                       str(d_len), options.temp,
+                       str(options.nsample), options.gridtype]
 
         else:
             command = analyze_obj + file_result + " " + calc + " " + avg + " "\
@@ -315,7 +317,8 @@ def print_cumulative_thermal_conductivity(analyze_obj,  cumulative_mode,  file_r
                        isotope, file_isotope,
                        str(max_len), str(d_len),
                        options.temp, str(size_flag[0]),
-                       str(size_flag[1]), str(size_flag[2])]
+                       str(size_flag[1]), str(size_flag[2]),
+                       str(options.nsample), options.gridtype]
         else:
             command = analyze_obj + file_result + " " + calc + " " + avg + " "\
                 + str(beg_s) + " " + str(end_s)\

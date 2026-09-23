@@ -20,6 +20,8 @@ class AlamodeBaseCalculation(CalcJob):
     @classmethod
     def define(cls, spec):
         super(AlamodeBaseCalculation, cls).define(spec)
+        # aiida-core >= 2.3 has no default for withmpi; the alamode tools are run without mpi here
+        spec.inputs['metadata']['options']['withmpi'].default = False
 
         spec.exit_code(200, "ERROR_NO_RETRIEVED_FOLDER",
                        message="The retrieved folder data node could not be accessed.")

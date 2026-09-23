@@ -9,11 +9,11 @@ from .structure_tools import make_atoms_primcell, make_atoms_supercell, \
     structure_to_SinglefileData, make_atoms_standardizedcell
 
 # load types
-StructureData = DataFactory('structure')
-FolderData = DataFactory('folder')
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory('array')
-List = DataFactory('list')
+StructureData = DataFactory('core.structure')
+FolderData = DataFactory('core.folder')
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory('core.array')
+List = DataFactory('core.list')
 
 @calcfunction
 def _path_join(cwd: Str, template: Str, value: Str):

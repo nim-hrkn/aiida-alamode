@@ -6,9 +6,9 @@ from aiida.plugins import DataFactory
 from aiida_alamode.workflows import make_best_supercell, structure_to_SinglefileData
 import os
 
-StructureData = DataFactory('structure')
-ArrayData = DataFactory('array')
-SinglefileData = DataFactory('singlefile')
+StructureData = DataFactory('core.structure')
+ArrayData = DataFactory('core.array')
+SinglefileData = DataFactory('core.singlefile')
 
 
 def _make_best_supercell_(refined_structure, **kwargs):

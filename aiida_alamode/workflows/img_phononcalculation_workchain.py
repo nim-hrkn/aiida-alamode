@@ -5,9 +5,9 @@ from aiida.plugins import DataFactory
 
 from .compute_phonon_props import PhononCalculator
 
-SinglefileData = DataFactory('singlefile')
-StructureData = DataFactory('structure')
-ArrayData = DataFactory('array')
+SinglefileData = DataFactory('core.singlefile')
+StructureData = DataFactory('core.structure')
+ArrayData = DataFactory('core.array')
 
 
 class BandImgPhononCalculatorWorkChain(WorkChain):

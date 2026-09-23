@@ -7,4 +7,6 @@ from .lammps_support import write_lammps_data
 from .misc import zerofillStr
 from .anphon_parse import parse_analyze_phonons_kappa_boundary, parse_analyze_phonons_tau_at_temperature, parse_analyze_phonons_cumulative
 from .fcsxml import Fcsxml
+from .supercell import make_diagonal_supercell
+from .dfset import make_dfset_lines
 

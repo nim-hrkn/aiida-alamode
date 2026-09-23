@@ -30,15 +30,16 @@ from ..common.base import AlamodeBaseCalculation
 from ..io import parse_analyze_phonons_kappa_boundary, parse_analyze_phonons_tau_at_temperature, parse_analyze_phonons_cumulative
 
 
-SinglefileData = DataFactory('singlefile')
-ArrayData = DataFactory("array")
+SinglefileData = DataFactory('core.singlefile')
+ArrayData = DataFactory("core.array")
 
 
 class AnalzePhononOptions(object):
     def __init__(self, calc: str, **kwargs):
         self.options = {'temp': None, 'mode': None, 'kpoint': None,
                         'calc': calc, 'isotope': None, 'average_gamma': True,
-                        'size': None, 'length': None, 'direction': None}
+                        'size': None, 'length': None, 'direction': None,
+                        'nsample': 1000, 'gridtype': 'log'}   # cumulative kappa, alamode >= 1.5
 
         for label, value in kwargs.items():
             self.options[label] = value
@@ -93,6 +94,7 @@ class AnalyzePhononsCalculation(AlamodeBaseCalculation):
                    default=lambda: Str(_OUTPUT_FILENAME_DEFAULT))
 
         spec.inputs['metadata']['options']['parser_name'].default = 'alamode.analyze_phonons'
+        spec.inputs['metadata']['options']['withmpi'].default = False
         spec.inputs['metadata']['options']['input_filename'].default = 'analyze_phonons.in'
         spec.inputs['metadata']['options']['output_filename'].default = 'analyze_phonons.out'
         spec.inputs['metadata']['options']['resources'].default = {
@@ -232,7 +234,7 @@ class AnalyzePhononsParser(Parser):
             if filename not in output_folder.list_object_names():
                 return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
             with output_folder.open(filename, "rb") as handle:
-                self.out('kappa_boundary_file', SinglefileData(handle))
+                self.out('kappa_boundary_file', SinglefileData(handle, filename=f'{prefix}_kappa_boundary.dat'))
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
@@ -267,7 +269,7 @@ class AnalyzePhononsParser(Parser):
             if filename not in output_folder.list_object_names():
                 return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
             with output_folder.open(filename, "rb") as handle:
-                self.out('tau_file', SinglefileData(handle))
+                self.out('tau_file', SinglefileData(handle, filename=f'{prefix}_tau.dat'))
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
@@ -300,7 +302,7 @@ class AnalyzePhononsParser(Parser):
             if filename not in output_folder.list_object_names():
                 return self.exit_codes.ERROR_OUTPUT_STDOUT_MISSING
             with output_folder.open(filename, "rb") as handle:
-                self.out('cumulative_file', SinglefileData(handle))
+                self.out('cumulative_file', SinglefileData(handle, filename=f'{prefix}_cumulative.dat'))
 
             try:
                 with output_folder.open(self.node.get_option('output_filename'), 'r') as handle:
