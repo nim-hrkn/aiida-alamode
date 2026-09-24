@@ -4,7 +4,7 @@ Input: a structure file readable by ASE (CIF, POSCAR, ...), the supercell size, 
 
     relax (alamode.relax_ase)  ->  primitive cell / supercell (calcfunctions)  ->  alm suggest (alamode.alm_suggest)
       ->  displace.py (alamode.displace_pf)  ->  forces + DFSET (alamode.forces)
-      ->  alm opt (alamode.alm_opt)  ->  anphon band / DOS (alamode.anphon)
+      ->  alm opt (alamode.alm_opt)  ->  anphon band / DOS (alamode.anphon)  ->  C_v, S, F (T) figure
       [->  the same anphon step on reference IFCs  ->  comparison figure]
     --cubic: alm suggest NORDER=2  ->  displace  ->  forces / DFSET  ->  alm opt (FC2XML fixed)
       ->  anphon RTA (kappa, kappa spectrum)  ->  analyze_phonons (tau, cumulative, boundary)  ->  figure
@@ -50,6 +50,7 @@ from aiida.orm import load_code, load_node, Str, Dict, Float, Int, List, Bool, P
 from aiida.plugins import DataFactory, WorkflowFactory, CalculationFactory
 from aiida_alamode.io.alm_input import AlmPrefixMaker
 from aiida_alamode.io.supercell import make_diagonal_supercell
+from aiida_alamode.calculations.anphon_calcjob import thermo_to_arraydata
 
 StructureData = DataFactory('core.structure')
 SinglefileData = DataFactory('core.singlefile')
@@ -59,6 +60,7 @@ TrajectoryData = DataFactory('core.array.trajectory')
 
 BOHR = 0.5291772108   # alamode tools/interface/QE.py
 CM1_TO_THZ = 0.0299792458
+RY_TO_MEV = 13605.693123
 HERE = os.path.dirname(os.path.abspath(__file__))
 ALAMODE_TEST = os.path.join(HERE, "..", "..", "alamode_test")
 KPATH_TUTORIAL = ["1",   # G-X-G-L, the path of the alamode tutorial (Si, PbTe)
@@ -393,6 +395,69 @@ def phonon_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, nonanaly
 
 
 @calcfunction
+def thermo_arrays(thermo_file: SinglefileData) -> ArrayData:
+    """{prefix}.thermo -> ArrayData (for anphon nodes made before the parser gave the 'thermo' output)"""
+    return thermo_to_arraydata(thermo_file.get_content())
+
+
+@calcfunction
+def thermo_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, natom: Int, **thermo) -> dict:
+    """C_v(T), S(T) and F(T) per primitive cell (harmonic, from anphon DOS runs); C_v against the
+    Dulong-Petit limit 3 N kB.
+
+    thermo: ms and optionally ref (ArrayData: temperatures, heat_capacity [kB], entropy [kB], free_energy [Ry]).
+    """
+    n = natom.value
+    dp = 3.0 * n
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.4))
+    summary = {"natom_primitive": n, "dulong_petit_kB": dp}
+    curves = [("ms", calc_label.value, "C0", "-")]
+    if "ref" in thermo:
+        curves.insert(0, ("ref", f"{ref_label.value} reference", "0.5", "--"))
+    for tag, label, color, ls in curves:
+        a = thermo[tag]
+        T = a.get_array("temperatures")
+        cv = a.get_array("heat_capacity")
+        s = a.get_array("entropy")
+        f = a.get_array("free_energy") * RY_TO_MEV
+        axes[0].plot(T, cv, color=color, ls=ls, lw=1.5, label=label)
+        axes[1].plot(T, s, color=color, ls=ls, lw=1.5, label=label)
+        axes[2].plot(T, f, color=color, ls=ls, lw=1.5, label=label)
+        at = {}
+        for t0 in (100.0, 300.0, 1000.0):
+            if T.min() <= t0 <= T.max():
+                cv0 = float(np.interp(t0, T, cv))
+                at[f"{t0:g}K"] = {"Cv_kB": cv0, "Cv_over_dulong_petit": cv0 / dp,
+                                  "S_kB": float(np.interp(t0, T, s)), "F_meV": float(np.interp(t0, T, f))}
+        # temperature where C_v reaches 90 % of the classical limit (a rough Debye-temperature scale)
+        above = np.nonzero(cv >= 0.9 * dp)[0]
+        summary[tag] = {"zero_point_energy_meV": float(f[np.argmin(T)]), "at": at,
+                        "T_Cv_90pct_dulong_petit_K": float(T[above[0]]) if len(above) else None}
+
+    ax = axes[0]
+    ax.axhline(dp, color="k", lw=0.8, ls=":")
+    ax.text(T.max(), dp, f"Dulong-Petit 3N = {dp:g}", ha="right", va="bottom", fontsize=8)
+    ax.set_ylim(0, dp * 1.12)
+    ax.set_ylabel(r"$C_v$ ($k_B$ / primitive cell)")
+    ax.set_title(f"{name.value} heat capacity (N = {n} atoms / cell)", fontsize=10)
+    right = ax.secondary_yaxis("right", functions=(lambda y: y / dp, lambda r: r * dp))
+    right.set_ylabel(r"$C_v$ / $3Nk_B$")
+    axes[1].set_ylabel(r"$S$ ($k_B$ / primitive cell)")
+    axes[1].set_title(f"{name.value} vibrational entropy", fontsize=10)
+    axes[2].set_ylabel("$F$ (meV / primitive cell)")
+    axes[2].set_title(f"{name.value} vibrational free energy (incl. zero-point)", fontsize=10)
+    for ax in axes:
+        ax.set_xlabel("Temperature (K)")
+        ax.set_xlim(0, T.max())
+        ax.legend(fontsize=8, loc="lower right" if ax is not axes[2] else "lower left")
+    fig.tight_layout()
+    target = os.path.join(cwd.value, f"{name.value}_thermo.png")
+    fig.savefig(target, dpi=150)
+    plt.close(fig)
+    return {"img_file": SinglefileData(target), "summary": Dict(summary)}
+
+
+@calcfunction
 def decompress_file(compressed: SinglefileData, cwd: Str) -> SinglefileData:
     """bz2/gz -> plain file in cwd (reference IFC xml files of alamode_test are compressed)."""
     import bz2
@@ -715,6 +780,22 @@ def main():
     summary = figure.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("figure:", os.path.join(root, figure.filename))
     print(json.dumps(summary, indent=1))
+
+    # --- 8. harmonic thermodynamics C_v(T), S(T), F(T) from the DOS runs (largest NONANALYTIC asked for)
+    na_thermo = max(args.nonanalytic)
+    thermo = {}
+    for tag, *_ in targets:
+        node = anphon[f"dos_{tag}_NA{na_thermo}"]
+        if "thermo" in node.outputs:
+            thermo[tag] = node.outputs.thermo
+        else:   # anphon node from before the 'thermo' output
+            thermo[tag] = run_cached(bank, f"thermo_{tag}_NA{na_thermo}", lambda: thermo_arrays(node.outputs.thermo_file))
+    thermo_img = run_cached(bank, "thermo_figure",
+                            lambda: thermo_figure(Str(root), Str(name), Str(args.calc_label), Str(args.ref_label),
+                                                  Int(len(prim.sites)), **thermo)["img_file"])
+    thermo_summary = thermo_img.base.links.get_incoming().one().node.outputs.summary.get_dict()
+    print("thermo figure:", os.path.join(root, thermo_img.filename))
+    print(json.dumps(thermo_summary, indent=1))
     if not args.cubic:
         print(f"done. provenance: verdi node graph generate {figure.pk}")
         return

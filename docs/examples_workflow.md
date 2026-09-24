@@ -38,6 +38,7 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 5. `--ref-xml` があれば、tutorial の DFT の IFC xml も同じ anphon ステップにかける。xml の supercell から基本胞を取り出す
    `primitive_from_fcsxml` を使い、座標系を xml に合わせる。
 6. 図 `<name>_phband_phdos.png` と、最大振動数や Γ 点の振動数の要約を出す。
+7. DOS 計算の `thermo` 出力（ArrayData）から、C_v(T)（Dulong–Petit 値 3Nk_B と比較）、S(T)、F(T) を並べた図 `<name>_thermo.png` と、その要約を出す。
 
 立方（cubic）部分（`--cubic`、Si のプリセットで有効）
 7. NORDER = 2、cutoff 7.5 Bohr で alm suggest をやり直し、`select_patterns` で 3 次のパターンだけを選ぶ。変位 0.04 Å で displace する。

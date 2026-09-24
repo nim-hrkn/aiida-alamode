@@ -238,7 +238,30 @@ The predictions lie within 10 to 20 % of the literature and reproduce the direct
 | BaZrO₃ | 14.3 → 19.0 | none | |
 | m-ZrO₂ | 21.6 → 23.8 | none | |
 
+### Harmonic thermodynamics (anphon DOS runs)
+
+`run_alamode_phonons.py` also draws `<name>_thermo.png`: C_v(T) against the Dulong–Petit limit 3N k_B,
+S(T) and F(T) (zero-point energy included), per primitive cell, from the DOS run with the largest
+NONANALYTIC value.  The numbers are in the driver's output after `thermo figure:`.
+
+| material | N | ZPE [meV] | C_v / 3Nk_B at 100 / 300 / 1000 K | T where C_v = 0.9 × 3Nk_B | S(300 K) [k_B] |
+|---|---|---|---|---|---|
+| Si (DFT reference) | 2 | 121.4 (122.6) | 0.29 / 0.80 / 0.98 (0.31 / 0.80 / 0.98) | 450 K (460 K) | 4.57 (4.72) |
+| PbTe (DFT reference) | 2 | 24.7 (25.2) | 0.92 / 0.99 / 1.00 (same) | 90 K (90 K) | 13.30 (13.16) |
+| BaHfO₃ | 5 | 249.1 | 0.47 / 0.85 / 0.98 | 390 K | 15.95 |
+| BaZrO₃ | 5 | 244.1 | 0.47 / 0.85 / 0.98 | 390 K | 16.35 |
+| m-ZrO₂ | 12 | 796.1 | 0.28 / 0.77 / 0.97 | 500 K | 26.27 |
+
+For Si, C_v(300 K) = 0.80 × 3Nk_B = 20.0 J/(mol·K), close to the measured C_p of 20.0 J/(mol·K).
+The harmonic C_v approaches 3Nk_B from below and never exceeds it: anharmonicity and thermal expansion (C_p − C_v)
+are not included.  anphon leaves imaginary modes out of the sums, so for BaZrO₃ (unstable R-point
+rotation) the values miss those modes.
+
 ## Other changes since v0.9
+
+- anphon `phonons_mode='dos'` now also gives the output `thermo` (ArrayData: `temperatures` [K],
+  `heat_capacity` and `entropy` [k_B], `internal_energy` and `free_energy` [Ry], per primitive cell;
+  units in the attribute `units`).
 
 - `alamode.alm_cv`: elastic-net cross validation, `results['alpha_min']`.
 - The anphon CalcJob accepts `borninfo`, `fc2xml`, `extra_files` and any `MODE` (SCPH, QHA). The `param` sections are written verbatim, and all `{prefix}.*` files come back in `output_folder`.

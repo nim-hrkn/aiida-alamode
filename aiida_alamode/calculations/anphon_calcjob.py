@@ -19,6 +19,8 @@ from aiida.plugins import DataFactory
 
 import os
 
+import numpy as np
+
 
 from aiida.common.exceptions import InputValidationError
 
@@ -111,6 +113,10 @@ class AnphonCalculation(AlamodeBaseCalculation):
         spec.output('phband_file', valid_type=SinglefileData)
         spec.output('phdos_file', valid_type=SinglefileData)
         spec.output('thermo_file', valid_type=SinglefileData)
+        spec.output('thermo', valid_type=ArrayData, required=False,
+                    help="phonons_mode='dos': harmonic thermodynamics per primitive cell from {prefix}.thermo, "
+                         "arrays temperatures [K], heat_capacity [kB] (C_v), entropy [kB], "
+                         "internal_energy [Ry], free_energy [Ry] (zero-point energy included)")
         spec.output('result_file', valid_type=SinglefileData)
         spec.output('kl_file', valid_type=SinglefileData)
         spec.output('kl', valid_type=ArrayData)
@@ -391,6 +397,25 @@ def _parse_anphon(handle):
     raise ValueError("failed to get result.")
 
 
+THERMO_COLUMNS = ("temperatures", "heat_capacity", "entropy", "internal_energy", "free_energy")
+THERMO_UNITS = {"temperatures": "K", "heat_capacity": "kB", "entropy": "kB",
+                "internal_energy": "Ry", "free_energy": "Ry"}
+
+
+def thermo_to_arraydata(content: str) -> ArrayData:
+    """anphon {prefix}.thermo (T, C_v / kB, S / kB, U [Ry], F [Ry], per primitive cell) -> ArrayData.
+
+    The units are stored in the attribute 'units'."""
+    data = np.loadtxt(content.splitlines(), ndmin=2)
+    if data.shape[1] < len(THERMO_COLUMNS):
+        raise ValueError(f"thermo file has {data.shape[1]} columns, expected {len(THERMO_COLUMNS)}")
+    array = ArrayData()
+    for i, key in enumerate(THERMO_COLUMNS):
+        array.set_array(key, data[:, i])
+    array.base.attributes.set("units", THERMO_UNITS)
+    return array
+
+
 def _parse_anphon_RTA(handle):
     data = handle.read().splitlines()
     data_iter = iter(data)
@@ -562,6 +587,11 @@ class AnphonParser(Parser):
                 with output_folder.open(filename, "rb") as handle:
                     self.out(label.replace("filename", "file"),
                              SinglefileData(handle, filename=filename))
+            if "thermo_filename" in result:
+                try:
+                    self.out('thermo', thermo_to_arraydata(output_folder.get_object_content(result["thermo_filename"])))
+                except ValueError:
+                    return self.exit_codes.ERROR_INVALID_OUTPUT
 
             if len(cwd) > 0:
                 filename = self.node.get_option('input_filename')
