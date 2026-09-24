@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-ASE-calculator runner (MatterSim by default; also sevennet, sevennet-polar, mace, chgnet, orb, emt, ...):
+ASE-calculator runner (MatterSim by default; also sevennet, sevennet-polar, equivar, mace, chgnet, orb, emt, ...):
 compute total energy, forces and stress of displaced structures, relax cells, run MD, elastic constants,
 Born effective charges.
 
@@ -57,6 +57,7 @@ job.json (mode "bec"): Born effective charges (and the dielectric tensor when th
     {"mode": "bec", "files": ["primitive.extxyz"], "input_format": "extxyz",
      "calculator": {"name": "sevennet-polar", "kwargs": {"model": ".../SevenNet-PS-M.pth"}},
      "output": "ase_results.json"}
+    (or "calculator": {"name": "equivar"}: the Equivar GCNN, aiida_alamode.equivar, weights ~/models/equivar/BM1.pt)
 The result has "born_effective_charges" (nat x 3 x 3, e; the calculator's convention, rows as VASP
 BORN EFFECTIVE CHARGES) and "dielectric_tensor" (3 x 3, or null if the calculator has none).
 
@@ -121,6 +122,12 @@ CALCULATORS = {
                                                 os.path.expanduser("~/models/sevennet-polar/SevenNet-PS-M.pth")),
                         "device": "auto"}),
     "orb": ("aiida_alamode.ase_runner", "_orb_calculator", {"model": "orb_v3_conservative_inf_omat", "device": "auto"}),
+    # Equivar (github.com/equivar/equivar_eval, Kutana et al. Sci. Rep. 2025): Born effective charges only; the
+    # TorchScript weights BM1.pt / BM2.pt are on Mendeley Data 10.17632/hx8kcpxh84.1 (same training systems and
+    # elements as SevenNet-Polar PS: Ba Ca Hf Li O P Pb Sr Ti Zr). Needs torch + e3nn only (aiida_alamode.equivar).
+    "equivar": ("aiida_alamode.equivar", "EquivarCalculator",
+                {"model": os.environ.get("EQUIVAR_MODEL", os.path.expanduser("~/models/equivar/BM1.pt")),
+                 "device": "auto"}),
     "emt": ("ase.calculators.emt", "EMT", {}),
     "lj": ("ase.calculators.lj", "LennardJones", {}),
 }

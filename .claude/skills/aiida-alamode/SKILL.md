@@ -30,7 +30,7 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 
 ## ドライバ（example/）
 
-- `run_alamode_phonons.py --preset Si|PbTe` / `--structure X.cif --supercell n n n [--relax full --idealize] [--cubic --cubic-cutoff BOHR] [--nonanalytic 0 3 --borninfo FILE | --borninfo-calculator sevennet-polar (--dielectric-model anisonet | --dielectric E)]`
+- `run_alamode_phonons.py --preset Si|PbTe` / `--structure X.cif --supercell n n n [--relax full --idealize] [--cubic --cubic-cutoff BOHR] [--nonanalytic 0 3 --borninfo FILE | --borninfo-calculator sevennet-polar|equivar (--dielectric-model anisonet | --dielectric E)]`
 - `run_alamode_scph.py`（BaTiO₃ 既定。MatterSim では TMAX 700、DT 50、MIXBETA_COORD 0.2 が必要）
 - `run_alamode_qha.py`（ZnO 既定）、`run_BaHfO3_example.sh`（Z* → フォノン → κ → SCPH の一括）
 - 共通：`--computer <label> --gpu --njobs N --cores N --root DIR`。`provenance_processes.py <pk> out.png` でプロセスだけの provenance 図。
@@ -46,7 +46,7 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 7. **リモート計算機（core.ssh_async）**：sshd の MaxStartups → `ControlMaster auto`；日本語ロケール → `SetEnv LC_ALL=C`；一時停止は `verdi process play`。
 8. **slurm の InvalidAccount**：23.11 の accounting_storage/none の不具合。ジョブは動くがバックフィルだけで 30 秒に 1 本。直し方は docs/slurm_invalidaccount.md。
 9. **GPU**：`--gpu`（`#SBATCH --gres=gpu:1`）。1 秒未満のジョブは GPU の方が遅い。MD は 4〜5 倍速い。
-10. **SevenNet-Polar の元素**：PS 系は Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr、PM 系は Li, O, P, Zr。Zn、Si、Te は不可。ASR の残差が大きい（> 0.5 e）なら分布外。
+10. **SevenNet-Polar の元素**：PS 系は Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr、PM 系は Li, O, P, Zr。Zn、Si、Te は不可。ASR の残差が大きい（> 0.5 e）なら分布外。Equivar（`--borninfo-calculator equivar`、`aiida_alamode.equivar`、重み `~/models/equivar/BM1.pt`）も同じ学習データなので同じ 10 元素。近接リストは最小像でなく全周期像で作る（5 原子胞で最小像だと Ti の Z* が 4.4 になる）。
 
 ## Z* と ε∞（結果の目安、docs/born_effective_charges.md）
 

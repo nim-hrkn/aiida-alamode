@@ -28,6 +28,7 @@ structure ─ relax_ase ─ alm_suggest ─ displace_pf ─ forces ─ alm_opt �
 ```
 pip install -e .[mattersim]            # MatterSim forces
 pip install -e .[sevennet-polar]       # Born effective charges (SevenNet-Polar)
+pip install -e .[equivar]              # Born effective charges (Equivar: torch + e3nn, weights from Mendeley Data)
 pip install -e <clone of github.com/virtualatoms/AnisoNet>   # ε∞ (needs lightning, pymatgen)
 ```
 
@@ -77,7 +78,7 @@ later be added as a subclass with the same output ports:
 - **Dielectric properties** (Z\*, ε∞): `calculations/dielectric_calcjob.py`, bases `DielectricCalculatorBaseCalculation` and `DielectricTensorBaseCalculation`.
 
 The ASE engine (`engine_base.py`, script `alamode-ase-runner`) accepts `mattersim`, `mace`, `mace-off`,
-`chgnet`, `sevennet`, `sevennet-polar`, `orb`, `emt`, `lj` (`aiida_alamode.ase_runner.CALCULATORS`).
+`chgnet`, `sevennet`, `sevennet-polar`, `equivar`, `orb`, `emt`, `lj` (`aiida_alamode.ase_runner.CALCULATORS`).
 
 | entry point | input | output |
 |---|---|---|
@@ -110,12 +111,13 @@ put in its place would nearly remove it.
 | quantity | source | how to use it |
 |---|---|---|
 | Z\* | SevenNet-Polar (ML) | `--borninfo-calculator sevennet-polar` (`alamode.bec_ase`) |
+| Z\* | Equivar (ML) | `--borninfo-calculator equivar` (`alamode.bec_ase`) |
 | ε∞ | AnisoNet (ML) | `--dielectric-model anisonet` (`alamode.epsinf_ase`) |
 | ε∞ | literature or your own DFT value | `--dielectric 6.7` (1, 3 or 9 numbers) |
 | both | an existing BORNINFO file | `--borninfo FILE` |
 | both | DFT (VASP LEPSILON, QE ph.x) | a subclass of the dielectric base; `alamode.borninfo` then skips the ε∞ job |
 
-SevenNet-Polar gives Z\* only.  AnisoNet (Lou & Ganose, arXiv:2405.07915, MIT licence) predicts the
+SevenNet-Polar and Equivar give Z\* only.  AnisoNet (Lou & Ganose, arXiv:2405.07915, MIT licence) predicts the
 full ε∞ tensor, including its anisotropy, in about 3 s on a CPU.
 
 ### Setting up AnisoNet
@@ -123,6 +125,20 @@ full ε∞ tensor, including its anisotropy, in about 3 s on a CPU.
 1. Install the package from a clone of github.com/virtualatoms/AnisoNet.
 2. Download the weights `anisonet-stock.ckpt` (249 MB) from figshare 26270974.
 3. Put the file at `~/models/anisonet/anisonet-stock.ckpt`, or point `ANISONET_CHECKPOINT` at it.
+
+### Setting up Equivar
+
+Equivar (Kutana, Shimizu, Watanabe & Asahi, Sci. Rep. 15, 16687 (2025)) is an equivariant GCNN trained on
+the same DFPT data as SevenNet-Polar: ABO₃ perovskites (A = Ba, Ca, Sr, Pb; B = Ti, Zr, Hf), Li₃PO₄ and
+ZrO₂, so it knows the ten elements **Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr** and nothing else.
+
+1. Nothing to install beyond torch and e3nn (`pip install -e .[equivar]`).  The published weights are
+   TorchScript archives; `aiida_alamode.equivar` registers pure-torch stand-ins for the torch_scatter /
+   torch_sparse operators they reference, so those packages are not needed.
+2. Download `BM1.pt` (510k parameters, 2.5 MB) and `BM2.pt` (131k parameters, 1 MB) from
+   Mendeley Data 10.17632/hx8kcpxh84.1 to `~/models/equivar/`, or point `EQUIVAR_MODEL` at one.
+   BM1 is the default; `--borninfo-kwargs '{"model": "~/models/equivar/BM2.pt"}'` selects BM2.
+3. Equivar gives Z\* only, so add `--dielectric-model anisonet` or `--dielectric E`.
 
 ### Example 1: driver
 
@@ -181,7 +197,8 @@ The engines are chosen by `bec_plugin` (default `alamode.bec_ase`) and `epsinf_p
 - **Atom order.** BORNINFO lists Z\* in the order of the anphon `&position` block, which is the atom order of the structure. It is not the KD order of `&general`, which is sorted by atomic number. Give the Born-charge job the same StructureData as anphon.
 - **NONANALYTIC = 3 (Ewald) needs a clean supercell.** `ase.build.make_supercell` may put the atoms of the first translation at another periodic image. Harmonic bands still look right, but the Ewald correction becomes badly wrong. Build supercells with `aiida_alamode.io.supercell.make_diagonal_supercell`.
 - **AnisoNet normalisation.** The upstream prediction notebook recomputes `num_neighbors` from the structures being predicted, so one structure gives different values in different batches. The runner fixes it at the training-set value 34.956847.
-- **Out-of-distribution materials.** Z\* of TiO₂ violates the acoustic sum rule by 0.3 to 1.2 e before it is enforced, and the values are less reliable. SevenNet-Polar has not learned Zn, Si or Te.
+- **Out-of-distribution materials.** Z\* of TiO₂ violates the acoustic sum rule by 0.3 to 1.2 e before it is enforced, and the values are less reliable. Neither SevenNet-Polar nor Equivar has learned Zn, Si or Te.
+- **Equivar graph.** The upstream script builds the graph from minimum-image distances, so a cell shorter than 6 Å (twice the 3 Å cutoff) loses neighbours: cubic BaTiO₃ then gives Ti 4.4 instead of 7.9. The runner uses a full periodic neighbour list instead (`mic=False`), which reproduces the training targets to 0.02 e and is independent of the supercell.
 
 `example/test_epsinf.py --computer <label>` checks ε∞ on nine materials against literature values.
 Details and more materials: `docs/born_effective_charges.md`.
@@ -212,6 +229,21 @@ All numbers are from MatterSim forces, SevenNet-Polar (PS-M checkpoint) Z\* and 
 | BaHfO₃ | Ba 2.74 / Hf 5.42 | −1.99 / −4.19 | none found |
 | m-ZrO₂ | Zr 5.54 / 5.44 / 5.01 | −2.5 to −2.8 (2 sites) | Zr 5.4 to 5.7 / O −2.3 to −3.2 |
 | rutile TiO₂ | Ti 6.8 / 6.8 / 7.8 | −3.45 / −3.45 / −4.08 | 6.3 / 6.3 / 7.5 |
+
+### Z\* from Equivar compared with SevenNet-Polar (diagonal, after the sum rule, in e)
+
+Same primitive cells as above, 2026-09-24.  ASR = largest component of Σ Z\* before it is removed.
+
+| material | BM1 | BM2 | SevenNet-PS-M |
+|---|---|---|---|
+| BaTiO₃ cubic | Ba 2.80 / Ti 7.82 / O −2.27, −6.08 (ASR 0.22) | 2.78 / 7.63 / −2.19, −6.04 (0.01) | 2.72 / 7.72 / −2.15, −6.14 (0.04) |
+| BaZrO₃ | 2.52 / 5.69 / −1.66, −4.89 (0.17) | 2.59 / 5.70 / −1.69, −4.91 (0.20) | 2.72 / 5.68 / −1.98, −4.44 (0.03) |
+| BaHfO₃ | 2.73 / 5.45 / −2.01, −4.16 (0.01) | 2.71 / 5.49 / −1.99, −4.22 (0.03) | 2.74 / 5.42 / −1.99, −4.19 (0.02) |
+| ZrO₂ P2₁/c | Zr 5.53, 5.42, 4.91 / O −2.4 to −3.0 (0.21) | 5.55, 5.40, 4.96 / −2.4 to −3.0 (0.33) | 5.54, 5.44, 5.01 / −2.4 to −3.0 (0.10) |
+| TiO₂ rutile (out of distribution) | Ti 6.54, 6.54, 7.11 (0.51) | 5.78, 5.78, 8.07 (3.8) | 6.82, 6.82, 7.93 (0.71) |
+
+The three models agree to about 0.1 e inside the training distribution (the O∥ of BaZrO₃ differs by
+0.45 e).  BM2 breaks down on rutile TiO₂; BM1 and SevenNet-Polar degrade more gently.
 
 ### High-frequency dielectric constant ε∞ (AnisoNet, eigenvalues)
 

@@ -31,6 +31,52 @@ PbTe のような Te を含む系は扱えない。
 `aiida_alamode.ase_runner.CALCULATORS` の `sevennet-polar` は既定で
 `~/models/sevennet-polar/SevenNet-PS-M.pth`（環境変数 `SEVENNET_POLAR_MODEL` で変更）を読む。
 
+## Equivar のインストール（Z* のもう一つのモデル）
+
+- 論文: Kutana, Shimizu, Watanabe & Asahi, "Representing Born effective charges with equivariant graph
+  convolutional neural networks", Sci. Rep. 15, 16687 (2025)。評価スクリプト: https://github.com/equivar/equivar_eval
+- 学習済みモデルとデータ: Mendeley Data https://doi.org/10.17632/hx8kcpxh84.1（`BM1.pt` 51 万パラメータ 2.5 MB、
+  `BM2.pt` 13 万パラメータ 1 MB、DFPT の Z* データ `BEC_perovsk.xyz` / `BEC_Li3PO4.xyz` / `BEC_ZrO2.xyz`）
+- 学習データは SevenNet-Polar と同じ 3 系（ABO₃ ペロブスカイト 1,224 構造、Li₃PO₄ 17,991、ZrO₂ 10,103）。
+  **対応元素は Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr の 10 種**。埋め込みは Z ≤ 99 まであるが、未学習の元素は
+  初期値のままの行を通るだけで意味のある値にならない（runner は警告を出す）。ε∞ は返さない。
+
+```
+mkdir -p ~/models/equivar && cd ~/models/equivar
+curl -sL "https://data.mendeley.com/public-api/datasets/hx8kcpxh84/files?folder_id=root&version=1" \
+  | python3 -c 'import json,sys; [print(f["filename"], f["content_details"]["download_url"]) for f in json.load(sys.stdin)]'
+# BM1.pt と BM2.pt の download_url を curl -L -o で取る（sha256 先頭: BM1 805c70a2c9c8、BM2 f8ade3ad9ab7）
+```
+
+- 追加パッケージは不要（torch と e3nn だけ。`pip install -e .[equivar]`）。重みは TorchScript で、torch_scatter /
+  torch_sparse の独自演算子（`segment_sum_csr`、`ind2ptr` など）を参照している。それらの wheel は新しい torch に無い
+  ので、`aiida_alamode.equivar.register_scatter_ops()` が同名の演算子を素の torch で登録してから `torch.jit.load` する。
+- グラフの作り方は `equivar_eval.process.AtomsToGraphs` と同じ（cutoff 3 Å、ガウス基底 32、球面調和 l ≤ 2、
+  edge の向きは j → i）。ただし上流は `get_all_distances(mic=True)` の最小像だけで近接を数えるので、
+  格子ベクトルが 6 Å より短い胞では近接が欠ける（立方 BaTiO₃ の 5 原子胞で Ti の Z* が 7.9 でなく 4.4 になる）。
+  `aiida_alamode.equivar` は既定で ASE の周期近接リスト（全像）を使う（`mic=False`）。学習データ（20 原子の
+  √2×√2×2 胞）に対する再現誤差は最小像 0.015 e、全像 0.021 e（BM1、対角の MAE）で、supercell に依らない。
+- `CALCULATORS["equivar"]` は既定で `~/models/equivar/BM1.pt`（環境変数 `EQUIVAR_MODEL`、または
+  `--borninfo-kwargs '{"model": "~/models/equivar/BM2.pt"}'`）。GPU でも CPU でも同じ値（RTX 3060 で確認）。
+
+```
+python run_alamode_phonons.py --structure BaZrO3_Pm-3m.cif --supercell 2 2 2 --name BaZrO3_equivar \
+    --nonanalytic 0 3 --borninfo-calculator equivar --dielectric-model anisonet --emax 900
+```
+
+### Equivar と SevenNet-Polar の比較（同じ緩和後の基本胞、ASR 強制後の対角 [e]、括弧は強制前の ASR 残差）
+
+| 物質 | BM1 | BM2 | SevenNet-PS-M |
+|---|---|---|---|
+| 立方 BaTiO₃（a = 4.032） | Ba 2.80 / Ti 7.82 / O −2.27, −6.08（0.22） | 2.78 / 7.63 / −2.19, −6.04（0.01） | 2.72 / 7.72 / −2.15, −6.14（0.04） |
+| BaZrO₃（4.254） | 2.52 / 5.69 / −1.66, −4.89（0.17） | 2.59 / 5.70 / −1.69, −4.91（0.20） | 2.72 / 5.68 / −1.98, −4.44（0.03） |
+| BaHfO₃（4.204） | 2.73 / 5.45 / −2.01, −4.16（0.01） | 2.71 / 5.49 / −1.99, −4.22（0.03） | 2.74 / 5.42 / −1.99, −4.19（0.02） |
+| 単斜 ZrO₂ | Zr 5.53, 5.42, 4.91 / O −2.4〜−3.0（0.21） | 5.55, 5.40, 4.96（0.33） | 5.54, 5.44, 5.01（0.10） |
+| ルチル TiO₂（分布外） | Ti 6.54, 6.54, 7.11（0.51） | 5.78, 5.78, 8.07（3.8） | 6.82, 6.82, 7.93（0.71） |
+
+分布内では 3 モデルとも 0.1 e 程度で一致する（BaZrO₃ の O∥ だけ 0.45 e の差）。分布外のルチル TiO₂ では
+BM2 が崩れる（ASR 残差 3.8 e）。SevenNet-Polar の DFT 文献値との比較は下の「結果のまとめ」。
+
 ## ε∞ の予測：AnisoNet
 
 - コード: https://github.com/virtualatoms/AnisoNet（Lou & Ganose, arXiv:2405.07915, MIT）。重み: figshare 26270974（`anisonet-stock.ckpt`, 249 MB）。
@@ -92,7 +138,7 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
   この CalcJob には anphon に渡すのと同じ StructureData を渡すこと。
 - **転置の規約**。Z*_{αβ} の添字順は VASP の `BORN EFFECTIVE CHARGES` の行の並びをそのまま書いている
   （学習データが VASP 由来）。立方晶では対称なので影響しないが、低対称の系では確認が要る。
-- **ε∞ は SevenNet-Polar からは出ない**。AnisoNet（`--dielectric-model anisonet`）か文献値（`--dielectric`）で与える。
+- **ε∞ は SevenNet-Polar からも Equivar からも出ない**。AnisoNet（`--dielectric-model anisonet`）か文献値（`--dielectric`）で与える。
 - **精度の目安**。立方 BaTiO₃（a = 4.0 Å）で PS-M は Ba 2.72、Ti 7.74、O −2.15（⊥）/ −6.15（∥）。
   DFT（LDA）の文献値は Ba 2.75、Ti 7.16、O −2.11 / −5.69。ASR の残差は 0.01 e 程度。
 
