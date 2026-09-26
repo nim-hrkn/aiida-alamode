@@ -26,7 +26,7 @@ import ase.io
 import ase.formula
 from ase import Atoms
 
-from run_alamode_phonons import (NodeBank, wait, run_cached, read_structure, find_primitive, idealize_structure,
+from run_alamode_phonons import (check_optional_packages, packages_needed, NodeBank, wait, run_cached, save_figure, figure_key, FIGURE_FORMATS, write_report, read_structure, find_primitive, idealize_structure,
                                  make_supercell_structure, submit_alm, submit_displace, submit_forces, submit_anphon,
                                  submit_ase, HERE, ALAMODE_TEST, BOHR)
 from aiida.engine import calcfunction, submit
@@ -51,7 +51,7 @@ def cubic_batio3(a=3.9855493692679786):
 
 @calcfunction
 def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData, prefix: Str, structure: StructureData,
-                ref_atom_disp: SinglefileData = None, ref_thermo: SinglefileData = None) -> dict:
+                formats: List, ref_atom_disp: SinglefileData = None, ref_thermo: SinglefileData = None) -> dict:
     """atomic displacements (z) and free energies vs T from the SCPH RELAX_STR run; tutorial reference dashed."""
     def load(text):
         return np.loadtxt(text.splitlines())
@@ -95,9 +95,6 @@ def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData,
     ax.set_title(f"{name.value} SCPH free energy", fontsize=10)
     ax.legend(fontsize=8)
     fig.tight_layout()
-    target = os.path.join(cwd.value, f"{name.value}_scph_relax.png")
-    fig.savefig(target, dpi=150)
-    plt.close(fig)
     # transition temperature: the highest T whose B-site displacement is a sizable fraction of the
     # low-T (saturated) value; the seed displacement of the high-symmetry phase is ~1e-3 Bohr
     ti_z = np.abs(disp[:, 6]) if nat > 1 else np.zeros(len(disp))
@@ -106,7 +103,7 @@ def scph_figure(cwd: Str, name: Str, calc_label: Str, output_folder: FolderData,
                "Ti_z_Bohr": disp[:, 6].tolist() if nat > 1 else [],
                "T_polar_max_K": float(polar.max()) if len(polar) else None,
                "F_total_meV": (thermo[:, 5] * RY_TO_MEV).tolist()}
-    return {"img_file": SinglefileData(target), "summary": Dict(summary)}
+    return {**save_figure(fig, cwd.value, f"{name.value}_scph_relax", formats), "summary": Dict(summary)}
 
 
 def parse_args():
@@ -161,6 +158,8 @@ def parse_args():
     parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4)
     parser.add_argument("--njobs", type=int, default=2)
+    parser.add_argument("--figure-format", nargs="+", choices=FIGURE_FORMATS, default=["png"], metavar="FMT",
+                        help="format(s) of the figure: png (default), svg, pdf")
     parser.add_argument("--root", default=os.path.join(HERE, "run_alamode_scph"))
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
@@ -193,6 +192,8 @@ def main():
     code_anphon = load_code(f"anphon@{args.computer}")
     code_displace = load_code(f"displace@{args.computer}")
     code_ase = load_code(f"ase_runner@{args.computer}")   # the alamode-ase-runner script
+    check_optional_packages(code_ase, packages_needed(args.calculator, getattr(args, "borninfo_calculator", None),
+                                                      getattr(args, "dielectric_model", None)))
     opt_calc = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                 "max_wallclock_seconds": 4 * 3600}
     if args.gpu:
@@ -334,15 +335,16 @@ def main():
                                            lambda: SinglefileData(os.path.join(REF_DIR, "cBTO222_scph.atom_disp")))
         refs["ref_thermo"] = run_cached(bank, "ref_thermo",
                                         lambda: SinglefileData(os.path.join(REF_DIR, "cBTO222_scph.scph_thermo")))
-    figure = run_cached(bank, "figure",
+    figure = run_cached(bank, figure_key("figure", args.figure_format),
                         lambda: scph_figure(Str(root), Str(name), Str(args.calc_label), scph.outputs.output_folder,
-                                            prefix_scph, prim, **refs)["img_file"])
+                                            prefix_scph, prim, List(args.figure_format), **refs)["img_file"])
     summary = figure.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("figure:", os.path.join(root, figure.filename))
     print(f"{summary['B_site']} z displacement [Bohr] vs T [K]:")
     for t, u in zip(summary["T_K"], summary["Ti_z_Bohr"]):
         print(f"  {t:6.0f}  {u: .5f}")
     print("highest T with a polar (tetragonal) structure:", summary["T_polar_max_K"], "K")
+    print("report:", write_report(root))
     print(f"done. provenance: verdi node graph generate {figure.pk}")
 
 

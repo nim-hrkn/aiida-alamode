@@ -7,7 +7,7 @@ description: aiida-alamode v0.10 で ALAMODE のフォノン計算（調和、�
 
 ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（または mace, chgnet, sevennet, orb, emt）の
 力計算、SevenNet-Polar / Equivar の Born 電荷を、すべて AiiDA の CalcJob / WorkChain として実行するプラグイン。
-詳しい説明は `docs/`（`examples_workflow.md`、`examples_materials.md`、`born_effective_charges.md`、`remote_gpu_computer.md`）。
+詳しい説明は `docs/`（`examples_workflow.md`、`examples_materials.md`、`born_effective_charges.md`、`remote_gpu_computer.md`、`rabbitmq.md`、`mcp_server.md`）。
 
 ## まず確認すること
 
@@ -30,11 +30,17 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 
 ## ドライバ（example/）
 
-- `run_alamode_phonons.py --preset Si|PbTe` / `--structure X.cif --supercell n n n [--relax full --idealize] [--cubic --cubic-cutoff BOHR] [--nonanalytic 0 3 --borninfo FILE | --borninfo-calculator sevennet-polar|equivar (--dielectric-model anisonet | --dielectric E)]`
+- `run_alamode_phonons.py --preset Si|PbTe` / `--structure X.cif --supercell n n n [--relax full --idealize] [--cubic --cubic-cutoff BOHR] [--nonanalytic 0 3 --borninfo FILE | --borninfo-calculator sevennet-polar|equivar (--dielectric-model anisonet | --dielectric E) | --born-charges Mg:1.96 O:-1.96 --dielectric-model anisonet]`
 - `run_alamode_scph.py`（BaTiO₃ 既定。MatterSim では TMAX 700、DT 50、MIXBETA_COORD 0.2 が必要）
 - `run_alamode_qha.py`（ZnO 既定）、`run_BaHfO3_example.sh`（Z* → フォノン → κ → SCPH の一括）
+- MCP サーバ `alamode-mcp`（`aiida_alamode/mcp_server.py`、`.mcp.json` に登録、`pip install -e .[mcp]`）：check_packages / list_codes / run_phonons / run_driver / run_status / run_results / list_runs / process_info / kill_run。driver をサブプロセスで起動し、結果は AiiDA ノードから pk つきで返す（docs/mcp_server.md）。
+- 必須は ALAMODE と aiida-core だけ。MatterSim / SevenNet-Polar / Equivar / AnisoNet は example とテストのための任意パッケージ（ase_runner の code が走る計算機に入れる）。
+  `example/check_packages.py [--computer X] [--require ...]`（= その計算機で `alamode-ase-runner --check`）で有無を確認。各 driver は投入前に同じ確認をして、無ければメッセージを出して止まる。`run_all_examples.sh` は無い example を飛ばす。
 - `run_alamode_phonons.py` の図：`<name>_phband_phdos.png`（NA0 / NA3 のバンドと DOS）、`<name>_kappa.png`、`<name>_thermo.png`（C_v(T) と Dulong–Petit 3Nk_B、S(T)、F(T) 零点込み。NONANALYTIC 最大の DOS 実行の `thermo` から。ログの `thermo figure:` に ZPE、100/300/1000 K の値、C_v が 0.9×3Nk_B に達する温度）。
-- 共通：`--computer <label> --gpu --njobs N --cores N --root DIR`。`provenance_processes.py <pk> out.png` でプロセスだけの provenance 図。
+- 共通：`--computer <label> --gpu --njobs N --cores N --root DIR`。`provenance_processes.py <pk> out.png`（拡張子 .svg / .pdf も可）でプロセスだけの provenance 図。
+- レポート：`alamode-report <run dir | 構造の pk> [-o x.html] [--summary | --json]`（`aiida_alamode/report.py`、MCP は `run_report`、driver は終了時に自動で書く）。HTML は要点カード（式、空間群、Wyckoff 位置、Γ 最高モード、κ、ZPE）、セルの表、緩和、fit、Z*/ε∞、フォノン、熱力学、κ、SCPH/QHA、図、プロセス表（折り畳み）とプロセスグラフ。手順の箇条書きとサイト座標の表は載せない（2026-09-26 に削除、ユーザーの希望）。MCP の `run_report` は `summary()` の要点と `<stem>.json`（全データ）のパスを返す。MCP の返り値は 20000 文字を超えるとファイルに書かれ、パスだけ返る（`_deliver`）。`.node.json` のラベルには頼らず、構造の pk から provenance を上（入力ファイル → 入力セル → 緩和 → 基本胞 → supercell）と下（全プロセス）にたどり、entry point / 関数名で種類を判定して（`classify`）、各プロセスの入出力から何をしたかを 1 行ずつ書く（`describe_step`）。数値はすべてノードから読み、図は figure calcfunction の `img_file`（SVG があれば inline、無ければ PNG を base64）。graphviz があればプロセスグラフも入れる。
+- **CalcJob / calcfunction / WorkChain を追加・変更したら `report.py` も更新する**：`classify`（entry point か process_label → kind）、`describe_step`（入出力 → 1 行の説明）、`collect` の該当節（新しい出力キーや単位）、必要なら `render` の表。入出力のキー名を変えたときも同じ（`results` / `result`、`phband_file`、`thermo` ArrayData、`kl_file`、`img_file` などを直接読んでいる）。変えたら `alamode-report` を phonons（Si）、LO-TO（MgO）、SCPH、QHA の run で回して、手順の一覧に「(AttributeError: …)」が出ないことと図が入ることを確認する。
+- 図の形式：3 つの driver とも `--figure-format svg`（`pdf`、複数指定 `png svg` も可）でベクタ図を書く。終わった run に別形式を指定すると図の calcfunction だけ走る（bank のキーは `figure[svg]` など）。MCP の `run_phonons` は `figure_format=["svg"]`。img workchain（phband_img / phdos_img / freeenergy_img）は `img_filename` の拡張子で決まる。
 
 ## 落とし穴（順に疑う）
 
@@ -61,6 +67,8 @@ ALAMODE の alm / anphon / displace.py / analyze_phonons と、MatterSim（ま�
 - ε∞（AnisoNet、電子誘電率、num_neighbors = 34.956847 に固定）：Si 13.1、MgO 3.13、BaHfO₃ 4.69、BaZrO₃ 4.93、BaTiO₃ 6.3、SrTiO₃ 6.55、
   ZrO₂ 5.2〜5.8、ルチル TiO₂ 7.7 / 9.3。文献の 1〜2 割以内。`example/test_epsinf.py --computer <label>` で再検証。
 - NA3 で Γ 点の最高 LO が 4〜6 THz 上がり、TO とソフトモードは動かなければ BORNINFO は正しく入っている。
+- 学習元素の外は `--born-charges Mg:1.96 O:-1.96`（文献 Z*）+ `--dielectric-model anisonet` または `--dielectric E`。MgO Γ TO 11.0 / LO 20.2 THz（実験 12.0 / 21.5）、NaCl 4.65 / 7.29（実験 4.9 / 7.9）。
+  γ-Li₃PO₄（Pnma 32 原子、`--supercell 2 1 2 --relax full --idealize`）は SevenNet-Polar で Li 1.04 / P 3.0 / O −1.54（DFPT 学習データの平均 1.07 / 2.96 / −1.54）、ε∞ 2.55〜2.58。
 - AnisoNet の落とし穴：predict notebook の書き方だと num_neighbors がバッチ依存で値が変わる。runner の固定値を使う。
   mygarden 系の壊れた GPU では `device: auto` が CUDA を選んで失敗するため runner は初期化失敗時に CPU に落ちる。
 

@@ -27,7 +27,7 @@ import ase.io
 import ase.formula
 from ase.build import bulk
 
-from run_alamode_phonons import (NodeBank, wait, run_cached, read_structure, find_primitive, idealize_structure,
+from run_alamode_phonons import (check_optional_packages, packages_needed, NodeBank, wait, run_cached, save_figure, figure_key, FIGURE_FORMATS, write_report, read_structure, find_primitive, idealize_structure,
                                  make_supercell_structure, submit_alm, submit_displace, submit_forces, submit_anphon,
                                  submit_ase, HERE, ALAMODE_TEST, BOHR)
 from aiida.engine import calcfunction
@@ -78,7 +78,7 @@ def make_strain_ifc_folder(elastic: FolderData, magnitude: Float, **xmls) -> Fol
 
 
 @calcfunction
-def qha_figure(cwd: Str, name: Str, calc_label: Str, **outputs) -> dict:
+def qha_figure(cwd: Str, name: Str, calc_label: Str, formats: List, **outputs) -> dict:
     """thermal strain u_xx (= u_yy) and u_zz vs T for each QHA scheme; tutorial reference dashed.
     outputs: scheme{n} (FolderData of the anphon QHA run, containing {prefix}.umn_tensor), ref{n} (SinglefileData)."""
     fig, ax = plt.subplots(figsize=(6.5, 4.6))
@@ -106,10 +106,7 @@ def qha_figure(cwd: Str, name: Str, calc_label: Str, **outputs) -> dict:
     ax.set_title(f"{name.value} thermal expansion (QHA structural optimization)", fontsize=10)
     ax.legend(fontsize=7)
     fig.tight_layout()
-    target = os.path.join(cwd.value, f"{name.value}_thermal_strain.png")
-    fig.savefig(target, dpi=150)
-    plt.close(fig)
-    return {"img_file": SinglefileData(target), "summary": Dict(summary)}
+    return {**save_figure(fig, cwd.value, f"{name.value}_thermal_strain", formats), "summary": Dict(summary)}
 
 
 def parse_args():
@@ -149,6 +146,8 @@ def parse_args():
     parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4)
     parser.add_argument("--njobs", type=int, default=2)
+    parser.add_argument("--figure-format", nargs="+", choices=FIGURE_FORMATS, default=["png"], metavar="FMT",
+                        help="format(s) of the figure: png (default), svg, pdf")
     parser.add_argument("--root", default=os.path.join(HERE, "run_alamode_qha"))
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
@@ -183,6 +182,7 @@ def main():
     code_anphon = load_code(f"anphon@{args.computer}")
     code_displace = load_code(f"displace@{args.computer}")
     code_ase = load_code(f"ase_runner@{args.computer}")   # the alamode-ase-runner script
+    check_optional_packages(code_ase, packages_needed(args.calculator))
     opt_calc = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                 "max_wallclock_seconds": 4 * 3600}
     if args.gpu:
@@ -342,14 +342,15 @@ def main():
             ref = os.path.join(REF_DIR, f"ZnO_{SCHEMES[s]}.umn_tensor")
             if os.path.isfile(ref):
                 outputs[f"ref{s}"] = run_cached(bank, f"ref_umn_{s}", lambda ref=ref: SinglefileData(ref))
-    figure = run_cached(bank, "figure",
-                        lambda: qha_figure(Str(root), Str(name), Str(args.calc_label), **outputs)["img_file"])
+    figure = run_cached(bank, figure_key("figure", args.figure_format),
+                        lambda: qha_figure(Str(root), Str(name), Str(args.calc_label), List(args.figure_format), **outputs)["img_file"])
     summary = figure.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("figure:", os.path.join(root, figure.filename))
     for scheme, v in summary.items():
         print(f"{scheme}: T [K] / u_xx / u_zz")
         for t, uxx, uzz in zip(v["T_K"], v["u_xx"], v["u_zz"]):
             print(f"  {t:6.0f}  {uxx: .5f}  {uzz: .5f}")
+    print("report:", write_report(root))
     print(f"done. provenance: verdi node graph generate {figure.pk}")
 
 

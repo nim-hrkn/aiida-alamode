@@ -20,6 +20,10 @@ usage:
     python run_alamode_phonons.py --structure Si.cif --supercell 2 2 2 --cubic --cubic-cutoff 7.5
     python run_alamode_phonons.py --preset Si --calculator mace --calculator-kwargs '{"model": "medium"}'
     python run_alamode_phonons.py --preset Si --calculator emt   # any name in aiida_alamode.ase_runner.CALCULATORS
+    python run_alamode_phonons.py --structure BaZrO3_Pm-3m.cif --supercell 2 2 2 --nonanalytic 0 3 \
+        --borninfo-calculator sevennet-polar --dielectric-model anisonet     # Z* and eps_inf predicted (LO-TO)
+    python run_alamode_phonons.py --structure MgO_Fm-3m.cif --supercell 2 2 2 --nonanalytic 0 3 \
+        --born-charges Mg:1.96 O:-1.96 --dielectric-model anisonet          # literature Z*, eps_inf predicted
 
 codes: alm, anphon, displace, analyze_phonons, ase_runner @<computer>.  verdi daemon and RabbitMQ must be running.
 
@@ -47,9 +51,11 @@ aiida.load_profile()
 
 from aiida.engine import calcfunction, submit
 from aiida.orm import load_code, load_node, Str, Dict, Float, Int, List, Bool, ProcessNode
+from aiida_alamode.report import write_report
 from aiida.plugins import DataFactory, WorkflowFactory, CalculationFactory
 from aiida_alamode.io.alm_input import AlmPrefixMaker
 from aiida_alamode.io.supercell import make_diagonal_supercell
+from aiida_alamode.optional_packages import check_on_computer, packages_needed
 from aiida_alamode.calculations.anphon_calcjob import thermo_to_arraydata
 
 StructureData = DataFactory('core.structure')
@@ -83,6 +89,27 @@ PRESETS = {
                  borninfo="PbTe/reference/PbTe.born", kpath="tutorial",
                  ref_xml="PbTe/reference/super444_0.01.xml", ref_label="DFT (VASP, PBEsol)"),
 }
+
+
+def check_optional_packages(code_ase, names, exit_on_missing=True):
+    """Before submitting anything: are the optional packages (mattersim, sevennet-polar, anisonet, ...) on the
+    computer of the ase_runner code?  Prints one line per package; exits with a message when one is missing.
+    Returns {name: ok}."""
+    names = [n for n in dict.fromkeys(names) if n]
+    if not names:
+        return {}
+    try:
+        status = check_on_computer(code_ase, names)
+    except RuntimeError as err:   # the check must not stop a run that would otherwise work
+        print(f"warning: {err}; going on")
+        return {name: True for name in names}
+    for name, r in status.items():
+        print(f"[{code_ase.computer.label}] {name}: {r['detail']}")
+    missing = [n for n in names if not status[n]["ok"]]
+    if missing and exit_on_missing:
+        sys.exit(f"missing on {code_ase.computer.label}: {', '.join(missing)}. Install them there (see README, "
+                 "'Optional packages') or choose another --calculator / --borninfo-calculator / --dielectric-model.")
+    return {name: status[name]["ok"] for name in names}
 
 
 class NodeBank:
@@ -130,6 +157,34 @@ def run_cached(bank, label, factory):
             wait(node)
         bank.dump(label, node)
     return node
+
+
+FIGURE_FORMATS = ("png", "svg", "pdf")
+
+
+def save_figure(fig, cwd, stem, formats):
+    """Save fig as <cwd>/<stem>.<fmt> for every format in `formats` (a List or list of 'png' / 'svg' / 'pdf').
+
+    Returns the calcfunction outputs: 'img_file' is the first format, the others are 'img_file_<fmt>'.
+    SVG and PDF are vector graphics (matplotlib picks the backend from the extension); dpi only affects
+    the raster PNG and any rasterised element."""
+    formats = formats.get_list() if isinstance(formats, List) else list(formats)
+    for fmt in formats:
+        if fmt not in FIGURE_FORMATS:
+            raise ValueError(f"figure format {fmt!r}: choose from {FIGURE_FORMATS}")
+    out = {}
+    for i, fmt in enumerate(formats):
+        target = os.path.join(cwd, f"{stem}.{fmt}")
+        fig.savefig(target, dpi=150)
+        out["img_file" if i == 0 else f"img_file_{fmt}"] = SinglefileData(target)
+    plt.close(fig)
+    return out
+
+
+def figure_key(label, formats):
+    """bank key of a figure node: the plain label for the default PNG, label[svg,...] otherwise, so that a run
+    drawn earlier as PNG can be redrawn in another format without recomputing anything else."""
+    return label if list(formats) == ["png"] else f"{label}[{','.join(formats)}]"
 
 
 # ---------------------------------------------------------------- calcfunctions
@@ -334,7 +389,8 @@ def _load_dos(content):
 
 
 @calcfunction
-def phonon_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, nonanalytic: List, qmesh: Int, **files) -> dict:
+def phonon_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, nonanalytic: List, qmesh: Int, formats: List,
+                  **files) -> dict:
     """bands for each NONANALYTIC value and the DOS; MatterSim, and the reference IFCs if given.
 
     files: band_ms_NA{n}, dos_ms_NA{n} and optionally band_ref_NA{n}, dos_ref_NA{n} (SinglefileData).
@@ -388,10 +444,7 @@ def phonon_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, nonanaly
     ax.set_title(f"{name.value} phonon DOS ({nq}x{nq}x{nq} q mesh)", fontsize=10)
     ax.legend(fontsize=8)
     fig.tight_layout()
-    target = os.path.join(cwd.value, f"{name.value}_phband_phdos.png")
-    fig.savefig(target, dpi=150)
-    plt.close(fig)
-    return {"img_file": SinglefileData(target), "summary": Dict(summary)}
+    return {**save_figure(fig, cwd.value, f"{name.value}_phband_phdos", formats), "summary": Dict(summary)}
 
 
 @calcfunction
@@ -401,7 +454,7 @@ def thermo_arrays(thermo_file: SinglefileData) -> ArrayData:
 
 
 @calcfunction
-def thermo_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, natom: Int, **thermo) -> dict:
+def thermo_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, natom: Int, formats: List, **thermo) -> dict:
     """C_v(T), S(T) and F(T) per primitive cell (harmonic, from anphon DOS runs); C_v against the
     Dulong-Petit limit 3 N kB.
 
@@ -451,10 +504,7 @@ def thermo_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, natom: I
         ax.set_xlim(0, T.max())
         ax.legend(fontsize=8, loc="lower right" if ax is not axes[2] else "lower left")
     fig.tight_layout()
-    target = os.path.join(cwd.value, f"{name.value}_thermo.png")
-    fig.savefig(target, dpi=150)
-    plt.close(fig)
-    return {"img_file": SinglefileData(target), "summary": Dict(summary)}
+    return {**save_figure(fig, cwd.value, f"{name.value}_thermo", formats), "summary": Dict(summary)}
 
 
 @calcfunction
@@ -476,7 +526,8 @@ def _kappa_avg(data):
 
 
 @calcfunction
-def kappa_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, temp: Float, rta_qmesh: Int, **files) -> dict:
+def kappa_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, temp: Float, rta_qmesh: Int, formats: List,
+                 **files) -> dict:
     """kappa(T), phonon lifetime, cumulative kappa and kappa spectrum at temp; MatterSim and the reference.
 
     files: kl_{tag}, spec_{tag}, tau_{tag}, cum_{tag}, boundary_{tag} for tag in ms (and ref).
@@ -539,10 +590,7 @@ def kappa_figure(cwd: Str, name: Str, calc_label: Str, ref_label: Str, temp: Flo
     for ax in axes.ravel():
         ax.legend(fontsize=8, markerscale=2.5)
     fig.tight_layout()
-    target = os.path.join(cwd.value, f"{name.value}_kappa.png")
-    fig.savefig(target, dpi=150)
-    plt.close(fig)
-    return {"img_file": SinglefileData(target), "summary": Dict(summary)}
+    return {**save_figure(fig, cwd.value, f"{name.value}_kappa", formats), "summary": Dict(summary)}
 
 
 # ---------------------------------------------------------------- workflow
@@ -569,6 +617,11 @@ def parse_args():
                         help="compute the Born charges of the primitive cell with this calculator instead (alamode.bec_ase; "
                              "e.g. sevennet-polar). Needs --dielectric unless the model gives the dielectric tensor.")
     parser.add_argument("--borninfo-kwargs", default="{}", help="JSON kwargs of --borninfo-calculator")
+    parser.add_argument("--born-charges", nargs="+", metavar="SYM:Z",
+                        help="Born charges given by hand (e.g. literature values of a material outside the training set of "
+                             "the models) instead of --borninfo-calculator: one 'Symbol:Z' per species, Z = 1 (isotropic), "
+                             "3 (diagonal, comma-separated) or 9 values; needs --dielectric-model or --dielectric. "
+                             "Example: --born-charges Mg:1.96 O:-1.96")
     parser.add_argument("--dielectric-model", metavar="NAME",
                         help="predict eps_inf with this model when the Born-charge calculator has none (e.g. anisonet)")
     parser.add_argument("--dielectric", type=float, nargs="+", metavar="E",
@@ -592,6 +645,8 @@ def parse_args():
     parser.add_argument("--gpu", action="store_true", help="request one GPU (#SBATCH --gres=gpu:1) for the MatterSim / SevenNet jobs")
     parser.add_argument("--cores", type=int, default=4, help="cores of the MatterSim jobs")
     parser.add_argument("--njobs", type=int, default=1, help="number of slurm jobs for the displaced structures")
+    parser.add_argument("--figure-format", nargs="+", choices=FIGURE_FORMATS, default=["png"], metavar="FMT",
+                        help="format(s) of the figures: png (default), svg, pdf; several write one file each (<name>_*.svg ...)")
     parser.add_argument("--root", default=os.path.join(HERE, "run_alamode_phonons"))
     parser.add_argument("--force", action="store_true", help="ignore .node.json and recompute everything")
     args = parser.parse_args()
@@ -617,8 +672,21 @@ def parse_args():
             setattr(args, key, value)
     if not args.structure or not args.supercell:
         parser.error("--structure and --supercell are required (or --preset)")
-    if any(na > 0 for na in args.nonanalytic) and not (args.borninfo or args.borninfo_calculator):
-        parser.error("NONANALYTIC > 0 needs --borninfo or --borninfo-calculator")
+    if any(na > 0 for na in args.nonanalytic) and not (args.borninfo or args.borninfo_calculator or args.born_charges):
+        parser.error("NONANALYTIC > 0 needs --borninfo, --borninfo-calculator or --born-charges")
+    if args.born_charges:
+        if args.borninfo_calculator:
+            parser.error("--born-charges and --borninfo-calculator exclude each other")
+        if not (args.dielectric_model or args.dielectric):
+            parser.error("--born-charges needs --dielectric-model or --dielectric")
+        charges = {}
+        for item in args.born_charges:
+            symbol, _, values = item.partition(":")
+            values = [float(v) for v in values.split(",")]
+            if len(values) not in (1, 3, 9):
+                parser.error(f"--born-charges {item}: 1, 3 or 9 values expected")
+            charges[symbol] = values
+        args.born_charges = charges
     args.borninfo_kwargs = json.loads(args.borninfo_kwargs)
     if args.cubic and not args.cubic_cutoff:
         parser.error("--cubic needs --cubic-cutoff [Bohr]")
@@ -642,6 +710,7 @@ def main():
     code_displace = load_code(f"displace@{args.computer}")
     code_ase = load_code(f"ase_runner@{args.computer}")   # the alamode-ase-runner script
     code_analyze = load_code(f"analyze_phonons@{args.computer}")    # the compiled analyze_phonons
+    check_optional_packages(code_ase, packages_needed(args.calculator, args.borninfo_calculator, args.dielectric_model))
     # slurm allocates whole cores (CR_Core). MatterSim uses the GPU if available, otherwise `cores` threads.
     opt_ase = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": args.cores},
                      "max_wallclock_seconds": 3600}
@@ -716,12 +785,20 @@ def main():
     borninfo = None
     if args.borninfo:
         borninfo = run_cached(bank, "borninfo", lambda: SinglefileData(os.path.abspath(args.borninfo)))
-    elif args.borninfo_calculator:
-        # Z* (alamode.bec_ase) and eps_inf (alamode.epsinf_ase with a dielectric model, or a given value)
-        # of the primitive cell -> BORNINFO (BornInfoWorkChain); same atom order as the anphon &position
-        bec_calculator = run_cached(bank, "bec_calculator",
-                                    lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
-        inputs = dict(structure=prim, bec=dict(code=code_ase, calculator=bec_calculator, cwd=Str(dirs["phonons"]), options=Dict(opt_serial)))
+    elif args.borninfo_calculator or args.born_charges:
+        # Z* (alamode.bec_ase, or values given by hand) and eps_inf (alamode.epsinf_ase with a dielectric model,
+        # or a given value) of the primitive cell -> BORNINFO (BornInfoWorkChain); same atom order as the anphon &position
+        inputs = dict(structure=prim)
+        if args.born_charges:
+            missing = {s.kind_name for s in prim.sites} - set(args.born_charges)
+            if missing:
+                sys.exit(f"--born-charges: no value for {sorted(missing)}")
+            inputs["born_charges"] = run_cached(bank, "born_charges",
+                                                lambda: List([args.born_charges[s.kind_name] for s in prim.sites]))
+        else:
+            bec_calculator = run_cached(bank, "bec_calculator",
+                                        lambda: Dict({"name": args.borninfo_calculator, "kwargs": args.borninfo_kwargs}))
+            inputs["bec"] = dict(code=code_ase, calculator=bec_calculator, cwd=Str(dirs["phonons"]), options=Dict(opt_serial))
         if args.dielectric_model:
             inputs["epsinf"] = dict(code=code_ase, dielectric_model=Dict({"name": args.dielectric_model}), cwd=Str(dirs["phonons"]),
                                     options=Dict(opt_serial))
@@ -729,7 +806,8 @@ def main():
             inputs["dielectric"] = List(args.dielectric)
         bec = run_cached(bank, "borninfo_wc", lambda: submit(WorkflowFactory("alamode.borninfo"), **inputs))
         r = bec.outputs.results
-        print("Born effective charges (diagonal) [e]:", {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})
+        print(f"Born effective charges (diagonal) [e] ({r.get('bec_source') or args.borninfo_calculator}):",
+              {s: np.round(d, 3).tolist() for s, d in zip(r["symbols"], r["bec_diagonal"])})
         print(f"dielectric tensor ({r['epsilon_inf_source']}):", np.round(r["epsilon_inf"], 3).tolist())
         borninfo = bec.outputs.borninfo
     targets = [("ms", prim, alm_opt.outputs.input_ANPHON, dirs["phonons"])]
@@ -774,9 +852,9 @@ def main():
     files = {}
     for label, node in anphon.items():
         files[label] = node.outputs.phband_file if label.startswith("band") else node.outputs.phdos_file
-    figure = run_cached(bank, "figure",
+    figure = run_cached(bank, figure_key("figure", args.figure_format),
                         lambda: phonon_figure(Str(root), Str(name), Str(args.calc_label), Str(args.ref_label), List(args.nonanalytic),
-                                              Int(args.qmesh), **files)["img_file"])
+                                              Int(args.qmesh), List(args.figure_format), **files)["img_file"])
     summary = figure.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("figure:", os.path.join(root, figure.filename))
     print(json.dumps(summary, indent=1))
@@ -790,13 +868,14 @@ def main():
             thermo[tag] = node.outputs.thermo
         else:   # anphon node from before the 'thermo' output
             thermo[tag] = run_cached(bank, f"thermo_{tag}_NA{na_thermo}", lambda: thermo_arrays(node.outputs.thermo_file))
-    thermo_img = run_cached(bank, "thermo_figure",
+    thermo_img = run_cached(bank, figure_key("thermo_figure", args.figure_format),
                             lambda: thermo_figure(Str(root), Str(name), Str(args.calc_label), Str(args.ref_label),
-                                                  Int(len(prim.sites)), **thermo)["img_file"])
+                                                  Int(len(prim.sites)), List(args.figure_format), **thermo)["img_file"])
     thermo_summary = thermo_img.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("thermo figure:", os.path.join(root, thermo_img.filename))
     print(json.dumps(thermo_summary, indent=1))
     if not args.cubic:
+        print("report:", write_report(root))
         print(f"done. provenance: verdi node graph generate {figure.pk}")
         return
 
@@ -889,12 +968,13 @@ def main():
         files[f"tau_{tag}"] = analyze[f"tau_{tag}"].outputs.tau_file
         files[f"cum_{tag}"] = analyze[f"cum_{tag}"].outputs.cumulative_file
         files[f"boundary_{tag}"] = analyze[f"boundary_{tag}"].outputs.kappa_boundary_file
-    figure2 = run_cached(bank, "figure_kappa",
+    figure2 = run_cached(bank, figure_key("figure_kappa", args.figure_format),
                          lambda: kappa_figure(Str(root), Str(name), Str(args.calc_label), Str(args.ref_label), temp, Int(args.rta_qmesh),
-                                              **files)["img_file"])
+                                              List(args.figure_format), **files)["img_file"])
     summary2 = figure2.base.links.get_incoming().one().node.outputs.summary.get_dict()
     print("figure:", os.path.join(root, figure2.filename))
     print(json.dumps(summary2, indent=1))
+    print("report:", write_report(root))
     print(f"done. provenance: verdi node graph generate {figure2.pk}")
 
 
