@@ -48,6 +48,9 @@ def main():
     p.add_argument("--device", default="auto", help="device of the model (auto, cpu, cuda)")
     args = p.parse_args()
     code = load_code(f"ase_runner@{args.computer}")
+    sys.path.insert(0, HERE)
+    from run_alamode_phonons import check_optional_packages
+    check_optional_packages(code, ["anisonet"])   # AnisoNet is optional; stop here with a message if it is absent
     options = {"resources": {"num_machines": 1, "num_mpiprocs_per_machine": 1, "num_cores_per_mpiproc": 2},
                "max_wallclock_seconds": 1800}
     if args.gpu:

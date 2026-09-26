@@ -13,6 +13,7 @@
 # limitations under the License.
 """
 ASE-calculator runner (MatterSim by default; also sevennet, sevennet-polar, equivar, mace, chgnet, orb, emt, ...):
+    alamode-ase-runner --check [mattersim sevennet-polar anisonet ...]   which optional packages this Python has
 compute total energy, forces and stress of displaced structures, relax cells, run MD, elastic constants,
 Born effective charges.
 
@@ -131,6 +132,38 @@ CALCULATORS = {
     "emt": ("ase.calculators.emt", "EMT", {}),
     "lj": ("ase.calculators.lj", "LennardJones", {}),
 }
+
+
+# optional packages: name -> (modules to import, model files that must exist).  None of them is needed by
+# the plugin itself (ALAMODE + aiida-core); the examples use them, and `alamode-ase-runner --check` tells
+# which ones this Python has (run it on the computer of the ase_runner code).
+PACKAGES = {
+    "mattersim": (["mattersim"], []),
+    "mace": (["mace"], []),
+    "chgnet": (["chgnet"], []),
+    "sevennet": (["sevenn"], []),
+    "sevennet-polar": (["sevenn"], [CALCULATORS["sevennet-polar"][2]["model"]]),
+    "equivar": (["torch", "e3nn"], [CALCULATORS["equivar"][2]["model"]]),
+    "anisonet": (["anisonet", "lightning", "pymatgen"],
+                 [os.environ.get("ANISONET_CHECKPOINT", os.path.expanduser("~/models/anisonet/anisonet-stock.ckpt"))]),
+    "orb": (["orb_models"], []),
+    "emt": (["ase.calculators.emt"], []),
+}
+
+
+def check_packages(names=None) -> dict:
+    """{name: {"ok": bool, "missing": [what is missing]}} for the optional packages (all by default)."""
+    import importlib.util
+    out = {}
+    for name in names or PACKAGES:
+        if name not in PACKAGES:
+            out[name] = {"ok": False, "missing": [f"unknown package {name} (known: {', '.join(PACKAGES)})"]}
+            continue
+        modules, files = PACKAGES[name]
+        missing = [f"python package {m}" for m in modules if importlib.util.find_spec(m.split(".")[0]) is None]
+        missing += [f"model file {f}" for f in files if not os.path.isfile(os.path.expanduser(f))]
+        out[name] = {"ok": not missing, "missing": missing}
+    return out
 
 
 def _orb_calculator(model="orb_v3_conservative_inf_omat", device="cpu", **kwargs):
@@ -505,6 +538,12 @@ def run(job: dict) -> dict:
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--check":
+        # alamode-ase-runner --check [name ...]: one line per optional package, exit 1 if any is missing
+        result = check_packages(sys.argv[2:] or None)
+        for name, r in result.items():
+            print(f"{name}: {'ok' if r['ok'] else 'missing (' + '; '.join(r['missing']) + ')'}")
+        sys.exit(0 if all(r["ok"] for r in result.values()) else 1)
     if len(sys.argv) != 2:
         print(__doc__)
         sys.exit(1)

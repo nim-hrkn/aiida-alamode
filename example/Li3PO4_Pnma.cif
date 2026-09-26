@@ -1,0 +1,79 @@
+#------------------------------------------------------------------------------
+#$Date: 2024-05-16 09:36:09 +0300 (Thu, 16 May 2024) $
+#$Revision: 291877 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/9/01/22/9012204.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/. The original data for this entry
+# were provided the American Mineralogist Crystal Structure Database,
+# http://rruff.geo.arizona.edu/AMS/amcsd.php
+#
+# The file may be used within the scientific community so long as
+# proper attribution is given to the journal article from which the
+# data were obtained.
+#
+data_9012204
+loop_
+_publ_author_name
+'Wang, B.'
+'Chakoumakos, B. C.'
+'Sales, B. C.'
+'Kwak, B. S.'
+'Bates, J. B.'
+_publ_section_title
+;
+ Synthesis, crystal structure, and ionic conductivity of a polycrystalline
+ lithium phosphorus oxynitride with the gamma-Li3PO4 structure
+;
+_journal_name_full               'Journal of Solid State Chemistry'
+_journal_page_first              313
+_journal_page_last               323
+_journal_paper_doi               10.1006/jssc.1995.1140
+_journal_volume                  115
+_journal_year                    1995
+_chemical_compound_source        Synthetic
+_chemical_formula_sum            'Li3 O4 P'
+_chemical_name_mineral           Lithiophosphate
+_space_group_IT_number           62
+_symmetry_space_group_name_Hall  '-P 2bc 2a'
+_symmetry_space_group_name_H-M   'P m n b'
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                90
+_cell_length_a                   6.1113
+_cell_length_b                   10.4612
+_cell_length_c                   4.9208
+_cell_formula_units_Z            4
+_cell_volume                     314.594
+_database_code_amcsd             0013843
+_exptl_crystal_density_diffrn    2.445
+_cod_original_formula_sum        'Li3 P O4'
+_cod_database_code               9012204
+loop_
+_space_group_symop_operation_xyz
+x,y,z
+1/2-x,y,z
+1/2+x,-y,-z
+1/2+x,1/2-y,1/2+z
+1/2-x,1/2+y,1/2-z
+x,1/2+y,1/2-z
+-x,1/2-y,1/2+z
+-x,-y,-z
+loop_
+_atom_site_label
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_U_iso_or_equiv
+Li1 0.50160 0.16270 0.30080 0.01090
+Li2 0.75000 0.42460 0.20450 0.01100
+P 0.25000 0.41150 0.30790 0.00390
+O1 0.04410 0.34180 0.20540 0.00600
+O2 0.25000 0.05030 0.29280 0.00680
+O3 0.75000 0.08960 0.12230 0.00560
+loop_
+_cod_related_entry_id
+_cod_related_entry_database
+_cod_related_entry_code
+1 AMCSD 0013843

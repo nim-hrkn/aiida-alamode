@@ -82,6 +82,8 @@ Z* は SevenNet-Polar（Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr の系）、ε∞ �
 BORNINFO にする。検証は「文献の DFT 値との一致」（Z* は BaTiO₃ で Ba 2.72 / Ti 7.72 / O −2.15, −6.14、ε∞ は
 BaZrO₃ 4.93、MgO 3.13）と「NA3 で Γ 点の LO が上がり TO は動かないこと」で行う。詳細と表は
 [born_effective_charges.md](born_effective_charges.md)。PbTe は Te が未学習のため tutorial の DFT の BORNINFO を使う。
+学習元素の外の物質（MgO、NaCl）は Z* を文献値で与え（`--born-charges Mg:1.96 O:-1.96`）、ε∞ は AnisoNet か文献値（`--dielectric 3.0`）にする。
+γ-Li₃PO₄（32 原子、Pnma）は学習データにある非ペロブスカイトで、ML の Z* が DFPT の平均（Li 1.07 / P 2.96 / O −1.54）と一致するかを見る。
 
 ## まとめ
 
@@ -92,6 +94,8 @@ BaZrO₃ 4.93、MgO 3.13）と「NA3 で Γ 点の LO が上がり TO は動か�
 | SrTiO₃ | R 点が不安定 | SCPH による有限温度の安定化、ソフトモード | 4 次 IFC |
 | BaTiO₃ | Γ 点が不安定 | 強誘電転移、有限温度の構造緩和 | 4 次 IFC、微小なエネルギー差 |
 | ZnO | 安定 | 異方的熱膨張、QHA 構造最適化 | 3 次 IFC とひずみの結合、弾性定数 |
+| γ-Li₃PO₄ | 安定 | 低対称の大きな胞、非ペロブスカイトの ML Z* | 2 次 IFC（2464 個）、Z* の元素・サイト依存 |
+| MgO、NaCl | 安定 | 文献 Z* + 予測 ε∞ の LO-TO 分裂、LST 関係 | 格子定数（1 % の誤差が TO に 8 % 効く） |
 
 Si と PbTe が「調和近似の範囲で正しく動くか」、SrTiO₃ と BaTiO₃ が「調和近似が破綻する物質を有限温度で扱えるか」、
 ZnO が「格子定数の温度変化を扱えるか」のテストという構成になっている。

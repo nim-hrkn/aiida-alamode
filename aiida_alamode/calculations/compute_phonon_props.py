@@ -416,15 +416,16 @@ class PhononCalculator(object):
         else:
             return None
 
-    def make_figures(self, joblist):
+    def make_figures(self, joblist, fmt='pdf'):
         """make figures depending on joblist.
         joblist can be 'band', 'dos+thermo', 'thermo'.
 
-        {prefix}_(band,dos,themo).pdf will be made.
+        {prefix}_(band,dos,themo).<fmt> will be made (fmt: pdf, png, svg).
 
         Args:
             joblist (str): job string.
         """
+        self._fig_fmt = fmt
         if self._cwd is None:
             return
         for job in joblist:
@@ -459,7 +460,7 @@ class PhononCalculator(object):
                        xmin_ax, xmax_ax, ymin, ymax, data_merged_ax, unit, files)
 
         os.makedirs(self._cwd, exist_ok=True)
-        plt.savefig(os.path.join(self._cwd, '%s_band.pdf' % self._prefix), bbox_inches='tight')
+        plt.savefig(os.path.join(self._cwd, '%s_band.%s' % (self._prefix, self._fig_fmt)), bbox_inches='tight')
         plt.clf()
 
     def _plot_dos(self):
@@ -482,7 +483,7 @@ class PhononCalculator(object):
         ax.set_xlabel('Frequency (meV)')
         ax.set_ylabel('DOS (states/meV/cell)')
         os.makedirs(self._cwd, exist_ok=True)
-        plt.savefig(os.path.join(self._cwd, '%s_dos.pdf' % self._prefix), bbox_inches='tight')
+        plt.savefig(os.path.join(self._cwd, '%s_dos.%s' % (self._prefix, self._fig_fmt)), bbox_inches='tight')
         plt.clf()
 
     def _plot_thermo(self):
@@ -526,7 +527,7 @@ class PhononCalculator(object):
         ax.set_ylabel('$F_{\mathrm{vib}}$/cell (eV)')
 
         os.makedirs(self._cwd, exist_ok=True)
-        plt.savefig(os.path.join(self._cwd, '%s_thermo.pdf' % self._prefix), bbox_inches='tight')
+        plt.savefig(os.path.join(self._cwd, '%s_thermo.%s' % (self._prefix, self._fig_fmt)), bbox_inches='tight')
         plt.clf()
 
     def _setformat_plot(self, xtick_size=16, ytick_size=16):
@@ -781,7 +782,7 @@ def run(args):
     calculator.compute(joblist)
 
     if args.savefig:
-        calculator.make_figures(joblist)
+        calculator.make_figures(joblist, fmt=args.figure_format)
 
 
 if __name__ == '__main__':
@@ -811,7 +812,9 @@ if __name__ == '__main__':
                         help="The FCSXML file used for phonon calculations")
 
     parser.add_argument('--savefig', action="store_true", dest="savefig", default=False,
-                        help="Save figures to pdf files.")
+                        help="Save figures to files (see --figure-format).")
+    parser.add_argument('--figure-format', choices=['pdf', 'png', 'svg'], default='pdf',
+                        help="format of the figures (default pdf)")
 
     parser.add_argument('--prefix',
                         metavar='phonon',

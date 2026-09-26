@@ -1,5 +1,6 @@
 """Compact provenance graph: only the processes (CalcJob / WorkChain / calcfunction) that lead to a node,
-connected where an output of one is an input of another. usage: python provenance_processes.py <pk> <out.png>"""
+connected where an output of one is an input of another. usage: python provenance_processes.py <pk> <out.png|out.svg|out.pdf>"""
+import os
 import sys
 from aiida import load_profile
 load_profile()
@@ -35,5 +36,6 @@ for pk, n in procs.items():
             edges.add((link.node.pk, pk, "CALL"))
 for a, b, lab in sorted(edges):
     g.edge(str(a), str(b), label=lab, fontsize="8", style="dashed" if lab == "CALL" else "solid")
-g.render(out.replace(".png", ""), cleanup=True)
+base, ext = os.path.splitext(out)
+g.render(base, format=(ext or ".png").lstrip("."), cleanup=True)   # .png / .svg / .pdf
 print(f"{len(procs)} processes, {len(edges)} edges -> {out}")

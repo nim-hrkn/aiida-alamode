@@ -38,6 +38,8 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 5. `--ref-xml` があれば、tutorial の DFT の IFC xml も同じ anphon ステップにかける。xml の supercell から基本胞を取り出す
    `primitive_from_fcsxml` を使い、座標系を xml に合わせる。
 6. 図 `<name>_phband_phdos.png` と、最大振動数や Γ 点の振動数の要約を出す。
+   図は既定で PNG。`--figure-format svg`（`pdf`、複数指定可）でベクタ形式にする。以下の図もすべて同じ（3 つの driver 共通）。
+   終わった run に別の形式を指定すると図を作る calcfunction だけが走り、`.node.json` には `figure[svg]` のように別キーで記録される。
 7. DOS 計算の `thermo` 出力（ArrayData）から、C_v(T)（Dulong–Petit 値 3Nk_B と比較）、S(T)、F(T) を並べた図 `<name>_thermo.png` と、その要約を出す。
 
 立方（cubic）部分（`--cubic`、Si のプリセットで有効）
@@ -90,6 +92,6 @@ DFT の代わりに MatterSim（または他の ASE calculator）で、全部 Ai
 
 `verdi node graph generate <pk>`（Graphviz が必要）で AiiDA の全ノードを描ける。データノードまで含むと大きい
 （BaHfO₃ の κ の図で 150 ノード）ので、プロセスだけを「出力が次の入力になった」線で結ぶ
-`example/provenance_processes.py <pk> <out.png>` も用意した。CalcJob は赤の箱、WorkChain は橙、calcfunction は緑の楕円。
+`example/provenance_processes.py <pk> <out.png>`（拡張子を .svg / .pdf にすればその形式）も用意した。CalcJob は赤の箱、WorkChain は橙、calcfunction は緑の楕円。
 BaHfO₃ の例: `run_v010/BaHfO3/BaHfO3_kappa_provenance_processes.png`（27 プロセス）、
 `run_v010_scph/BaHfO3/BaHfO3_scph_provenance_processes.png`（22 プロセス）。

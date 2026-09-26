@@ -128,6 +128,16 @@ python run_alamode_phonons.py --structure BaTiO3_Pm-3m.cif --supercell 2 2 2 --n
 
 `--dielectric 6.7` の代わりに `--dielectric-model anisonet` とすれば ε∞ も予測になり、文献値は不要になる。
 
+学習元素（Ba, Ca, Hf, Li, O, P, Pb, Sr, Ti, Zr）の外の物質では Z* を文献値で与え、ε∞ だけ AnisoNet に任せる：
+
+```
+python run_alamode_phonons.py --structure MgO_Fm-3m.cif --supercell 2 2 2 --name MgO \
+    --nonanalytic 0 3 --born-charges Mg:1.96 O:-1.96 --dielectric-model anisonet
+```
+
+`--born-charges` は元素ごとに 1（等方）、3（対角、コンマ区切り）または 9 個の値。`BornInfoWorkChain` の
+`born_charges`（構造の原子ごとの List）に展開され、Z* のジョブは走らない（総和則は与える側の責任）。
+
 `--borninfo` でファイルを渡す代わりに `--borninfo-calculator` を指定すると、緩和後の基本胞に対して
 `BornInfoWorkChain`（`alamode.bec_ase` + `alamode.epsinf_ase` または `--dielectric` の値）が走り、その BORNINFO が anphon に渡る。`--dielectric` の値は文献値を与える
 （立方 BaTiO₃ の ε∞ = 6.7 は Zhong, King-Smith, Vanderbilt, PRL 72, 3618 (1994) の LDA 値）。
@@ -230,6 +240,7 @@ BaTiO₃（同じ手順で 350〜400 K に立方 → 正方転移）との対比
 | ZrO₂ | 単斜 P2₁/c | Zr 5.54 / 5.44 / 5.01 | −2.5〜−2.8（2 サイト） | Zr 5.4〜5.7 / O −2.3〜−3.2 | 0.1 |
 | TiO₂ | ルチル（分布外） | Ti 6.8 / 6.8 / 7.8 | −3.45 / −3.45 / −4.08（非対角 1.8） | 6.3 / 6.3 / 7.5 | 0.2〜0.7 |
 | TiO₂ | アナターゼ（分布外） | Ti 6.8 / 6.8 / 5.8 | −5.6 / −1.1 / −3.2 | 6.2 / 6.2 / 5.6 | 0.3〜1.2 |
+| γ-Li₃PO₄ | 斜方 Pnma、32 原子 | Li 0.9〜1.2（平均 1.04）/ P 2.9〜3.1 | −1.1〜−2.2（平均 −1.54） | 学習データ（DFPT スナップショット）の平均 Li 1.07 / P 2.96 / O −1.54 | 0.00 |
 
 同じ元素でもサイトごとに違う（BaTiO₃ の 3 つの O は結合方向だけ −6.1）。ASR 残差が 0.5 e を超える系は
 学習分布の外（TiO₂）で、値の信頼度が下がる。Zn、Si、Te を含む系は元素が未学習で計算できない。
@@ -240,7 +251,8 @@ BaTiO₃（同じ手順で 350〜400 K に立方 → 正方転移）との対比
 |---|---|---|
 | Si | 13.14 | 実験 11.7、学習データ（MP）12.1〜13.7 |
 | MgO | 3.13 | 3.0（全誘電率は 9.8 → 返すのは電子誘電率） |
-| NaCl | 2.67 | 2.3 |
+| NaCl | 2.67（MatterSim の格子で 2.63） | 2.3 |
+| γ-Li₃PO₄ | 2.55 / 2.58 / 2.58 | DFT 2.5 程度 |
 | BaHfO₃ | 4.69 | 4.6〜4.9 |
 | BaZrO₃ | 4.93 | 4.9 |
 | 立方 BaTiO₃ | 6.30 | 5.9〜6.7（LDA） |
@@ -258,9 +270,14 @@ BaTiO₃（同じ手順で 350〜400 K に立方 → 正方転移）との対比
 | BaHfO₃ | 14.7 → 18.3 | なし（R 点 2.2 THz） | 全経路で虚数なし |
 | BaZrO₃ | 14.3 → 19.0 | なし | R 点の回転モード −1.38 THz は補正と無関係 |
 | 単斜 ZrO₂ | 21.6 → 23.8 | なし | NA0 の弱い虚数（−0.8 THz）が NA3 で消える |
+| γ-Li₃PO₄ | 32.2 → 32.5 | なし | ML の Z* + AnisoNet。P–O 伸縮の LO はほとんど動かない（ε∞ 2.6、Z*(P) 3） |
+| MgO | 11.0 → 20.2 | なし | 文献 Z* 1.96 + AnisoNet ε∞ 3.21（`--born-charges`）。ε∞ = 3.0 なら 20.7。実験 TO 12.0 / LO 21.5 THz、LO/TO = 1.83 は √(ε₀/ε∞) と整合 |
+| NaCl | 4.65 → 7.29 | なし | 文献 Z* 1.10 + AnisoNet ε∞ 2.63。実験 TO 4.9 / LO 7.9 THz。TO が低いのは MatterSim の格子定数が 1 % 大きいため |
 
 ### 検証した経路
 
 - `BornInfoWorkChain`：Z* のジョブ + ε∞ のジョブ（AnisoNet）→ BORNINFO、および Z* のジョブ + 与えた ε∞（`dielectric`）。
   どちらも BaHfO₃ で anphon の NA3 バンドまで完走。
 - 同じ計算を CPU（ホスト）と GPU ノードで行い、Z* と ε∞ は小数第 3 位まで一致。
+- `born_charges` を与える経路（2026-09-26）：MgO、NaCl で文献 Z* + AnisoNet ε∞、MgO で文献 Z* + 文献 ε∞（`--dielectric 3.0`）。
+  Z* ジョブは走らず、`results` の `bec_source` が `input` になる。

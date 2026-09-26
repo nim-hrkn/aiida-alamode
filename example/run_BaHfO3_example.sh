@@ -6,6 +6,7 @@
 # finished steps are reused from run_v010*/BaHfO3/.node.json on rerun.
 set -e
 cd "$(dirname "$0")"
+python check_packages.py --require mattersim sevennet-polar anisonet   # optional packages, must be on $AIIDA_ALAMODE_COMPUTER
 COMMON="--structure BaHfO3_Pm-3m.cif --supercell 2 2 2 --name BaHfO3 --borninfo-calculator sevennet-polar --dielectric-model anisonet --njobs 2"
 
 # 1. Z* (alamode.bec_ase) -> BORNINFO; harmonic phonons NONANALYTIC 0 / 3;
