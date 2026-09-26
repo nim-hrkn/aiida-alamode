@@ -4,7 +4,7 @@ AiiDA plugin for [ALAMODE](https://alamode.readthedocs.io/) (alm, anphon, displa
 Every step of an ALAMODE calculation, from the displaced structures to the thermal conductivity,
 runs as an AiiDA process, so each result keeps its full provenance.
 
-Version 1.0.0.  The plugin needs ALAMODE and aiida-core only.  The forces can come from DFT (VASP, Quantum ESPRESSO,
+Version 1.0.0, tested with ALAMODE 1.5.0.  The plugin needs ALAMODE and aiida-core only.  The forces can come from DFT (VASP, Quantum ESPRESSO,
 OpenMX), LAMMPS, or, optionally, a machine-learning model through ASE (the examples use MatterSim); Z\* and ε∞
 for the LO-TO splitting can be given by hand or, optionally, predicted by machine-learning models
 (SevenNet-Polar, Equivar, AnisoNet).
@@ -37,8 +37,10 @@ pip install -e .          # aiida-core, ase, spglib, numpy, pandas, matplotlib
 ```
 
 Build ALAMODE (`alm`, `anphon`, `tools/displace.py`, `analyze_phonons`) and register one AiiDA code per program
-on the computer where it runs (`verdi code create core.code.installed --label alm --computer <computer> ...`,
-the same for `anphon`, `displace`, `analyze_phonons`).  After editing the plugin, run `pip install -e . --no-deps`
+on the computer where it runs.  **Tested with ALAMODE 1.5.0** (and aiida-core 2.9); older ALAMODE versions differ in
+the `analyze_phonons` arguments (`nsample gridtype`, see below) and are not supported.  Register the codes with
+`verdi code create core.code.installed --label alm --computer <computer> ...`, the same for `anphon`, `displace`,
+`analyze_phonons`.  After editing the plugin, run `pip install -e . --no-deps`
 (entry points) and `verdi daemon restart`.
 
 With this alone you can:
