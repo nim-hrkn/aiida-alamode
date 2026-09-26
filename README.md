@@ -446,6 +446,7 @@ node and carries its pk.
 
 | file | contents |
 |---|---|
+| `docs/intro.html` | introduction for ALAMODE users who do not know AiiDA (Japanese / English, standalone with the figures inline): architecture, how the ALAMODE steps map onto AiiDA processes, provenance, ML forces and Z\* / ε∞, reports, LLM operation, the MgO report as an appendix |
 | `docs/born_effective_charges.md` | Z\* and ε∞ in detail, the BaHfO₃ chain, more results |
 | `docs/examples_workflow.md` | what each driver does, step by step, and the provenance graph |
 | `docs/examples_materials.md` | why each material was chosen and what it tests |
